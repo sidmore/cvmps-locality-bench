@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="700" height="300">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.ref{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s8: N=15, P=10, 30 rpm -- per-label footprint (pods that ever hosted the label, 0-90 min)</text>
+  <line class="grid" x1="60" y1="245.0" x2="680" y2="245.0"/>
+  <text class="tick" x="54" y="248.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="204.0" x2="680" y2="204.0"/>
+  <text class="tick" x="54" y="207.0" text-anchor="end">4</text>
+  <line class="grid" x1="60" y1="163.0" x2="680" y2="163.0"/>
+  <text class="tick" x="54" y="166.0" text-anchor="end">8</text>
+  <line class="grid" x1="60" y1="122.0" x2="680" y2="122.0"/>
+  <text class="tick" x="54" y="125.0" text-anchor="end">12</text>
+  <line class="grid" x1="60" y1="81.0" x2="680" y2="81.0"/>
+  <text class="tick" x="54" y="84.0" text-anchor="end">16</text>
+  <line class="grid" x1="60" y1="40.0" x2="680" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">20</text>
+  <rect x="66.9" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="76.1" y="224.5" width="8.7" height="20.5" fill="#1f77b4"/>
+  <rect x="85.3" y="224.5" width="8.7" height="20.5" fill="#2ca02c"/>
+  <text class="tick" x="80.7" y="259" text-anchor="middle">L1</text>
+  <rect x="108.2" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="117.4" y="234.8" width="8.7" height="10.2" fill="#1f77b4"/>
+  <rect x="126.6" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="122.0" y="259" text-anchor="middle">L2</text>
+  <rect x="149.6" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="158.7" y="224.5" width="8.7" height="20.5" fill="#1f77b4"/>
+  <rect x="167.9" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="163.3" y="259" text-anchor="middle">L3</text>
+  <rect x="190.9" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="200.1" y="234.8" width="8.7" height="10.2" fill="#1f77b4"/>
+  <rect x="209.3" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="204.7" y="259" text-anchor="middle">L4</text>
+  <rect x="232.2" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="241.4" y="224.5" width="8.7" height="20.5" fill="#1f77b4"/>
+  <rect x="250.6" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="246.0" y="259" text-anchor="middle">L5</text>
+  <rect x="273.6" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="282.7" y="224.5" width="8.7" height="20.5" fill="#1f77b4"/>
+  <rect x="291.9" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="287.3" y="259" text-anchor="middle">L6</text>
+  <rect x="314.9" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="324.1" y="234.8" width="8.7" height="10.2" fill="#1f77b4"/>
+  <rect x="333.3" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="328.7" y="259" text-anchor="middle">L7</text>
+  <rect x="356.2" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="365.4" y="224.5" width="8.7" height="20.5" fill="#1f77b4"/>
+  <rect x="374.6" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="370.0" y="259" text-anchor="middle">L8</text>
+  <rect x="397.6" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="406.7" y="224.5" width="8.7" height="20.5" fill="#1f77b4"/>
+  <rect x="415.9" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="411.3" y="259" text-anchor="middle">L9</text>
+  <rect x="438.9" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="448.1" y="234.8" width="8.7" height="10.2" fill="#1f77b4"/>
+  <rect x="457.3" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="452.7" y="259" text-anchor="middle">L10</text>
+  <rect x="480.2" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="489.4" y="234.8" width="8.7" height="10.2" fill="#1f77b4"/>
+  <rect x="498.6" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="494.0" y="259" text-anchor="middle">L11</text>
+  <rect x="521.6" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="530.7" y="224.5" width="8.7" height="20.5" fill="#1f77b4"/>
+  <rect x="539.9" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="535.3" y="259" text-anchor="middle">L12</text>
+  <rect x="562.9" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="572.1" y="224.5" width="8.7" height="20.5" fill="#1f77b4"/>
+  <rect x="581.3" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="576.7" y="259" text-anchor="middle">L13</text>
+  <rect x="604.2" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="613.4" y="234.8" width="8.7" height="10.2" fill="#1f77b4"/>
+  <rect x="622.6" y="234.8" width="8.7" height="10.2" fill="#2ca02c"/>
+  <text class="tick" x="618.0" y="259" text-anchor="middle">L14</text>
+  <rect x="645.6" y="142.5" width="8.7" height="102.5" fill="#d62728"/>
+  <rect x="654.7" y="234.8" width="8.7" height="10.2" fill="#1f77b4"/>
+  <rect x="663.9" y="224.5" width="8.7" height="20.5" fill="#2ca02c"/>
+  <text class="tick" x="659.3" y="259" text-anchor="middle">L15</text>
+  <line class="ref" x1="60" y1="142.5" x2="680" y2="142.5"/>
+  <text class="tick" x="64" y="139.5" fill="#666">P = 10 pods (max)</text>
+  <line class="axis" x1="60" y1="245" x2="680" y2="245"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="245"/>
+  <text x="370" y="279" text-anchor="middle">label</text>
+  <text x="14" y="142" transform="rotate(-90 14 142)" text-anchor="middle">pods hosting label</text>
+  <rect x="460" y="48" width="12" height="8" fill="#d62728"/>
+  <text x="478" y="55">baseline</text>
+  <rect x="460" y="64" width="12" height="8" fill="#1f77b4"/>
+  <text x="478" y="71">central</text>
+  <rect x="460" y="80" width="12" height="8" fill="#2ca02c"/>
+  <text x="478" y="87">pernode</text>
+</svg>

@@ -1,0 +1,13 @@
+# t_min,topology,active_pods
+0,baseline,0
+30,baseline,30
+60,baseline,30
+90,baseline,30
+0,central,0
+30,central,13
+60,central,13
+90,central,13
+0,pernode,0
+30,pernode,12
+60,pernode,12
+90,pernode,12

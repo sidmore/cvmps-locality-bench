@@ -1,0 +1,13 @@
+# t_min,topology,window_rpm
+0,baseline,0
+30,baseline,29.87
+60,baseline,30.07
+90,baseline,29.90
+0,central,0
+30,central,30.10
+60,central,30.03
+90,central,30.03
+0,pernode,0
+30,pernode,30.13
+60,pernode,30.03
+90,pernode,30.00

@@ -1,0 +1,13 @@
+# t_min,topology,cold_pct
+0,baseline,0
+30,baseline,14.79
+60,baseline,13.09
+90,baseline,13.05
+0,central,0
+30,central,0.07
+60,central,0.00
+90,central,0.00
+0,pernode,0
+30,pernode,0.07
+60,pernode,0.00
+90,pernode,0.00
