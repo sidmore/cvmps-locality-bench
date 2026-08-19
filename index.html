@@ -5,6 +5,7 @@
   h1{margin-bottom:4px}
   h2{margin-top:32px;border-bottom:1px solid #ccc;padding-bottom:4px}
   .grid2{display:grid;grid-template-columns:repeat(2, minmax(680px, 1fr));gap:10px;margin-bottom:8px}
+  .grid3{display:grid;grid-template-columns:repeat(3, minmax(460px, 1fr));gap:10px;margin-bottom:8px}
   .cell{background:#fff}
   .caption{color:#666;font-size:12px;margin:2px 0 12px}
   .meta{color:#333;font-size:12px;background:#f7f7f9;padding:10px 14px;border-left:3px solid #666;border-radius:3px}
@@ -27,10 +28,13 @@ Each snap covers 30 min; <code>workMs</code> classifies the DONE as warm (~2 s) 
   <li><b>Active pods</b> (# distinct pods with any DONE in the window) &mdash; fleet footprint. Baseline spreads work across all pods; locality concentrates it on a small canonical set.</li>
   <li><b>Label footprint</b> (# distinct pods that ever hosted each label over the full 90 min) &mdash; per label, how many pods did we have to warm up? Baseline &asymp; P (full fleet warmed); locality &lt;&lt; P (only picks stay warm).</li>
 </ol>
+<b>Plus a latency row (P50 / P90 / P99):</b> per-window percentiles of <code>workMs</code> (seconds).
+Warm floor is ~2 s (WorkerImpl). Small cold = ~45 s, Large cold = ~180 s. Locality should stay near the warm floor at every percentile;
+baseline's tail (P99) reveals the cold-tax that the throughput chart hides.
 </div>
 <h2>s1 &mdash; N=5, P=30, 5 rpm</h2>
 <p class="caption">Bench dir: <code>n5-sweep-partial/tricast-20260818-205057</code> &middot; target = 5 rpm &rarr; ~450 jobs over 90 min &middot; N=5 labels, P=30 pods provisioned.</p>
-<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th></tr><tr><td class="topo">baseline</td><td>453</td><td class="good">101%</td><td>149</td><td>32.89%</td><td>30 / 30</td><td>24.80</td><td>14&ndash;30</td></tr><tr><td class="topo">central</td><td>452</td><td class="good">100%</td><td>2</td><td>0.44%</td><td>5 / 30</td><td>1.00</td><td>1&ndash;1</td></tr><tr><td class="topo">pernode</td><td>447</td><td class="good">99%</td><td>4</td><td>0.89%</td><td>3 / 30</td><td>1.00</td><td>1&ndash;1</td></tr></table>
+<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th><th>P50 s</th><th>P90 s</th><th>P99 s</th></tr><tr><td class="topo">baseline</td><td>453</td><td class="good">101%</td><td>149</td><td>32.89%</td><td>30 / 30</td><td>24.80</td><td>14&ndash;30</td><td>2.00</td><td>45.00</td><td>180.00</td></tr><tr><td class="topo">central</td><td>452</td><td class="good">100%</td><td>2</td><td>0.44%</td><td>5 / 30</td><td>1.00</td><td>1&ndash;1</td><td>2.00</td><td>2.00</td><td>2.00</td></tr><tr><td class="topo">pernode</td><td>447</td><td class="good">99%</td><td>4</td><td>0.89%</td><td>3 / 30</td><td>1.00</td><td>1&ndash;1</td><td>2.00</td><td>2.00</td><td>2.01</td></tr></table>
 <div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="700" height="300">
   <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
   <text class="title" x="60" y="20">s1: N=5, P=30, 5 rpm -- throughput per 30-min window</text>
@@ -247,9 +251,175 @@ Each snap covers 30 min; <code>workMs</code> classifies the DONE as warm (~2 s) 
   <text x="478" y="87">pernode</text>
 </svg>
 </div></div>
+<div class="grid3"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s1: N=5, P=30, 5 rpm -- P50 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P50 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s1: N=5, P=30, 5 rpm -- P90 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">80</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">120</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">160</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">200</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P90 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="175.6" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="175.6" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,175.6 200.0,175.6 200.0,57.5 340.0,57.5 340.0,175.6 480.0,175.6 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,213.2 200.0,213.2 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,213.2 200.0,213.2 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s1: N=5, P=30, 5 rpm -- P99 workMs per window (tail)</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">80</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">120</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">160</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">200</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P99 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,213.2 200.0,213.2 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="175.6" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,175.6 200.0,175.6 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div></div>
 <h2>s2 &mdash; N=5, P=30, 30 rpm</h2>
 <p class="caption">Bench dir: <code>n5-sweep-partial/tricast-20260818-222237</code> &middot; target = 30 rpm &rarr; ~2700 jobs over 90 min &middot; N=5 labels, P=30 pods provisioned.</p>
-<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th></tr><tr><td class="topo">baseline</td><td>2695</td><td class="good">100%</td><td>578</td><td>21.45%</td><td>30 / 30</td><td>29.80</td><td>29&ndash;30</td></tr><tr><td class="topo">central</td><td>2705</td><td class="good">100%</td><td>2</td><td>0.07%</td><td>5 / 30</td><td>1.00</td><td>1&ndash;1</td></tr><tr><td class="topo">pernode</td><td>2705</td><td class="good">100%</td><td>3</td><td>0.11%</td><td>5 / 30</td><td>1.00</td><td>1&ndash;1</td></tr></table>
+<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th><th>P50 s</th><th>P90 s</th><th>P99 s</th></tr><tr><td class="topo">baseline</td><td>2695</td><td class="good">100%</td><td>578</td><td>21.45%</td><td>30 / 30</td><td>29.80</td><td>29&ndash;30</td><td>2.00</td><td>45.00</td><td>180.00</td></tr><tr><td class="topo">central</td><td>2705</td><td class="good">100%</td><td>2</td><td>0.07%</td><td>5 / 30</td><td>1.00</td><td>1&ndash;1</td><td>2.00</td><td>2.00</td><td>2.01</td></tr><tr><td class="topo">pernode</td><td>2705</td><td class="good">100%</td><td>3</td><td>0.11%</td><td>5 / 30</td><td>1.00</td><td>1&ndash;1</td><td>2.00</td><td>2.00</td><td>2.00</td></tr></table>
 <div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="700" height="300">
   <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
   <text class="title" x="60" y="20">s2: N=5, P=30, 30 rpm -- throughput per 30-min window</text>
@@ -466,9 +636,175 @@ Each snap covers 30 min; <code>workMs</code> classifies the DONE as warm (~2 s) 
   <text x="478" y="87">pernode</text>
 </svg>
 </div></div>
+<div class="grid3"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s2: N=5, P=30, 30 rpm -- P50 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">0.6</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">1.2</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">1.8</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">2.4</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">3</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P50 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="98.3" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="98.3" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="98.3" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,98.3 200.0,98.3 200.0,98.3 340.0,98.3 340.0,98.3 480.0,98.3 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="98.3" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="98.3" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="98.3" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,98.3 200.0,98.3 200.0,98.3 340.0,98.3 340.0,98.3 480.0,98.3 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="98.3" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="98.3" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="98.3" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,98.3 200.0,98.3 200.0,98.3 340.0,98.3 340.0,98.3 480.0,98.3 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s2: N=5, P=30, 30 rpm -- P90 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P90 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s2: N=5, P=30, 30 rpm -- P99 workMs per window (tail)</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">80</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">120</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">160</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">200</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P99 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,213.2 200.0,213.2 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,213.2 200.0,213.2 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div></div>
 <h2>s3 &mdash; N=5, P=30, 100 rpm</h2>
 <p class="caption">Bench dir: <code>n5-sweep-partial/tricast-20260818-235432</code> &middot; target = 100 rpm &rarr; ~9000 jobs over 90 min &middot; N=5 labels, P=30 pods provisioned.</p>
-<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th></tr><tr><td class="topo">baseline</td><td>8985</td><td class="good">100%</td><td>1226</td><td>13.64%</td><td>30 / 30</td><td>30.00</td><td>30&ndash;30</td></tr><tr><td class="topo">central</td><td>9010</td><td class="good">100%</td><td>2</td><td>0.02%</td><td>5 / 30</td><td>1.00</td><td>1&ndash;1</td></tr><tr><td class="topo">pernode</td><td>9001</td><td class="good">100%</td><td>2</td><td>0.02%</td><td>6 / 30</td><td>1.20</td><td>1&ndash;2</td></tr></table>
+<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th><th>P50 s</th><th>P90 s</th><th>P99 s</th></tr><tr><td class="topo">baseline</td><td>8985</td><td class="good">100%</td><td>1226</td><td>13.64%</td><td>30 / 30</td><td>30.00</td><td>30&ndash;30</td><td>2.00</td><td>45.00</td><td>180.00</td></tr><tr><td class="topo">central</td><td>9010</td><td class="good">100%</td><td>2</td><td>0.02%</td><td>5 / 30</td><td>1.00</td><td>1&ndash;1</td><td>2.00</td><td>2.00</td><td>2.01</td></tr><tr><td class="topo">pernode</td><td>9001</td><td class="good">100%</td><td>2</td><td>0.02%</td><td>6 / 30</td><td>1.20</td><td>1&ndash;2</td><td>2.00</td><td>2.00</td><td>2.00</td></tr></table>
 <div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="700" height="300">
   <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
   <text class="title" x="60" y="20">s3: N=5, P=30, 100 rpm -- throughput per 30-min window</text>
@@ -685,9 +1021,175 @@ Each snap covers 30 min; <code>workMs</code> classifies the DONE as warm (~2 s) 
   <text x="478" y="87">pernode</text>
 </svg>
 </div></div>
+<div class="grid3"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s3: N=5, P=30, 100 rpm -- P50 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">0.6</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">1.2</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">1.8</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">2.4</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">3</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P50 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="98.3" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="98.3" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="98.3" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,98.3 200.0,98.3 200.0,98.3 340.0,98.3 340.0,98.3 480.0,98.3 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="98.3" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="98.3" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="98.3" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,98.3 200.0,98.3 200.0,98.3 340.0,98.3 340.0,98.3 480.0,98.3 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="98.3" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="98.3" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="98.3" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,98.3 200.0,98.3 200.0,98.3 340.0,98.3 340.0,98.3 480.0,98.3 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s3: N=5, P=30, 100 rpm -- P90 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P90 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s3: N=5, P=30, 100 rpm -- P99 workMs per window (tail)</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">80</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">120</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">160</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">200</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P99 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,213.2 200.0,213.2 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,213.2 200.0,213.2 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div></div>
 <h2>s4 &mdash; N=15, P=30, 5 rpm</h2>
 <p class="caption">Bench dir: <code>n15-sweep/tricast-20260819-012648</code> &middot; target = 5 rpm &rarr; ~450 jobs over 90 min &middot; N=15 labels, P=30 pods provisioned.</p>
-<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th></tr><tr><td class="topo">baseline</td><td>420</td><td class="warn">93%</td><td>312</td><td>74.29%</td><td>30 / 30</td><td>18.67</td><td>12&ndash;25</td></tr><tr><td class="topo">central</td><td>428</td><td class="good">95%</td><td>16</td><td>3.74%</td><td>13 / 30</td><td>1.07</td><td>1&ndash;2</td></tr><tr><td class="topo">pernode</td><td>425</td><td class="warn">94%</td><td>15</td><td>3.53%</td><td>12 / 30</td><td>1.00</td><td>1&ndash;1</td></tr></table>
+<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th><th>P50 s</th><th>P90 s</th><th>P99 s</th></tr><tr><td class="topo">baseline</td><td>420</td><td class="warn">93%</td><td>312</td><td>74.29%</td><td>30 / 30</td><td>18.67</td><td>12&ndash;25</td><td>45.00</td><td>180.00</td><td>180.00</td></tr><tr><td class="topo">central</td><td>428</td><td class="good">95%</td><td>16</td><td>3.74%</td><td>13 / 30</td><td>1.07</td><td>1&ndash;2</td><td>2.00</td><td>2.00</td><td>45.02</td></tr><tr><td class="topo">pernode</td><td>425</td><td class="warn">94%</td><td>15</td><td>3.53%</td><td>12 / 30</td><td>1.00</td><td>1&ndash;1</td><td>2.00</td><td>2.00</td><td>45.02</td></tr></table>
 <div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="700" height="300">
   <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
   <text class="title" x="60" y="20">s4: N=15, P=30, 5 rpm -- throughput per 30-min window</text>
@@ -944,9 +1446,175 @@ Each snap covers 30 min; <code>workMs</code> classifies the DONE as warm (~2 s) 
   <text x="478" y="87">pernode</text>
 </svg>
 </div></div>
+<div class="grid3"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s4: N=15, P=30, 5 rpm -- P50 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P50 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s4: N=15, P=30, 5 rpm -- P90 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">80</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">120</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">160</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">200</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P90 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="175.6" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,175.6 200.0,175.6 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="175.6" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,175.6 200.0,175.6 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="175.6" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,175.6 200.0,175.6 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s4: N=15, P=30, 5 rpm -- P99 workMs per window (tail)</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">80</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">120</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">160</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">200</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P99 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div></div>
 <h2>s5 &mdash; N=15, P=30, 30 rpm</h2>
 <p class="caption">Bench dir: <code>n15-sweep/tricast-20260819-025820</code> &middot; target = 30 rpm &rarr; ~2700 jobs over 90 min &middot; N=15 labels, P=30 pods provisioned.</p>
-<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th></tr><tr><td class="topo">baseline</td><td>2686</td><td class="good">99%</td><td>1899</td><td>70.70%</td><td>30 / 30</td><td>29.47</td><td>26&ndash;30</td></tr><tr><td class="topo">central</td><td>2705</td><td class="good">100%</td><td>7</td><td>0.26%</td><td>14 / 30</td><td>1.00</td><td>1&ndash;1</td></tr><tr><td class="topo">pernode</td><td>2714</td><td class="good">101%</td><td>14</td><td>0.52%</td><td>14 / 30</td><td>1.13</td><td>1&ndash;2</td></tr></table>
+<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th><th>P50 s</th><th>P90 s</th><th>P99 s</th></tr><tr><td class="topo">baseline</td><td>2686</td><td class="good">99%</td><td>1899</td><td>70.70%</td><td>30 / 30</td><td>29.47</td><td>26&ndash;30</td><td>45.00</td><td>45.00</td><td>180.00</td></tr><tr><td class="topo">central</td><td>2705</td><td class="good">100%</td><td>7</td><td>0.26%</td><td>14 / 30</td><td>1.00</td><td>1&ndash;1</td><td>2.00</td><td>2.00</td><td>2.01</td></tr><tr><td class="topo">pernode</td><td>2714</td><td class="good">101%</td><td>14</td><td>0.52%</td><td>14 / 30</td><td>1.13</td><td>1&ndash;2</td><td>2.00</td><td>2.00</td><td>2.01</td></tr></table>
 <div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="700" height="300">
   <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
   <text class="title" x="60" y="20">s5: N=15, P=30, 30 rpm -- throughput per 30-min window</text>
@@ -1203,9 +1871,175 @@ Each snap covers 30 min; <code>workMs</code> classifies the DONE as warm (~2 s) 
   <text x="478" y="87">pernode</text>
 </svg>
 </div></div>
+<div class="grid3"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s5: N=15, P=30, 30 rpm -- P50 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P50 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s5: N=15, P=30, 30 rpm -- P90 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P90 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s5: N=15, P=30, 30 rpm -- P99 workMs per window (tail)</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">80</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">120</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">160</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">200</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P99 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,213.2 200.0,213.2 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="175.6" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,175.6 200.0,175.6 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div></div>
 <h2>s6 &mdash; N=15, P=30, 100 rpm</h2>
 <p class="caption">Bench dir: <code>n15-sweep/tricast-20260819-042956</code> &middot; target = 100 rpm &rarr; ~9000 jobs over 90 min &middot; N=15 labels, P=30 pods provisioned.</p>
-<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th></tr><tr><td class="topo">baseline</td><td>8968</td><td class="good">100%</td><td>6052</td><td>67.48%</td><td>30 / 30</td><td>30.00</td><td>30&ndash;30</td></tr><tr><td class="topo">central</td><td>9004</td><td class="good">100%</td><td>3</td><td>0.03%</td><td>14 / 30</td><td>1.00</td><td>1&ndash;1</td></tr><tr><td class="topo">pernode</td><td>9008</td><td class="good">100%</td><td>9</td><td>0.10%</td><td>17 / 30</td><td>1.20</td><td>1&ndash;2</td></tr></table>
+<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th><th>P50 s</th><th>P90 s</th><th>P99 s</th></tr><tr><td class="topo">baseline</td><td>8968</td><td class="good">100%</td><td>6052</td><td>67.48%</td><td>30 / 30</td><td>30.00</td><td>30&ndash;30</td><td>45.00</td><td>45.00</td><td>180.00</td></tr><tr><td class="topo">central</td><td>9004</td><td class="good">100%</td><td>3</td><td>0.03%</td><td>14 / 30</td><td>1.00</td><td>1&ndash;1</td><td>2.00</td><td>2.00</td><td>2.01</td></tr><tr><td class="topo">pernode</td><td>9008</td><td class="good">100%</td><td>9</td><td>0.10%</td><td>17 / 30</td><td>1.20</td><td>1&ndash;2</td><td>2.00</td><td>2.00</td><td>2.00</td></tr></table>
 <div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="700" height="300">
   <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
   <text class="title" x="60" y="20">s6: N=15, P=30, 100 rpm -- throughput per 30-min window</text>
@@ -1462,9 +2296,175 @@ Each snap covers 30 min; <code>workMs</code> classifies the DONE as warm (~2 s) 
   <text x="478" y="87">pernode</text>
 </svg>
 </div></div>
+<div class="grid3"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s6: N=15, P=30, 100 rpm -- P50 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P50 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s6: N=15, P=30, 100 rpm -- P90 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P90 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s6: N=15, P=30, 100 rpm -- P99 workMs per window (tail)</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">80</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">120</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">160</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">200</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P99 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,213.2 200.0,213.2 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,213.2 200.0,213.2 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div></div>
 <h2>s7 &mdash; N=15, P=10, 5 rpm</h2>
 <p class="caption">Bench dir: <code>n15-sweep/tricast-20260819-060200</code> &middot; target = 5 rpm &rarr; ~450 jobs over 90 min &middot; N=15 labels, P=10 pods provisioned.</p>
-<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th></tr><tr><td class="topo">baseline</td><td>455</td><td class="good">101%</td><td>335</td><td>73.63%</td><td>10 / 10</td><td>9.47</td><td>8&ndash;10</td></tr><tr><td class="topo">central</td><td>453</td><td class="good">101%</td><td>19</td><td>4.19%</td><td>10 / 10</td><td>1.27</td><td>1&ndash;2</td></tr><tr><td class="topo">pernode</td><td>450</td><td class="good">100%</td><td>20</td><td>4.44%</td><td>8 / 10</td><td>1.33</td><td>1&ndash;3</td></tr></table>
+<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th><th>P50 s</th><th>P90 s</th><th>P99 s</th></tr><tr><td class="topo">baseline</td><td>455</td><td class="good">101%</td><td>335</td><td>73.63%</td><td>10 / 10</td><td>9.47</td><td>8&ndash;10</td><td>45.00</td><td>45.00</td><td>180.00</td></tr><tr><td class="topo">central</td><td>453</td><td class="good">101%</td><td>19</td><td>4.19%</td><td>10 / 10</td><td>1.27</td><td>1&ndash;2</td><td>2.00</td><td>2.00</td><td>45.02</td></tr><tr><td class="topo">pernode</td><td>450</td><td class="good">100%</td><td>20</td><td>4.44%</td><td>8 / 10</td><td>1.33</td><td>1&ndash;3</td><td>2.00</td><td>2.00</td><td>45.00</td></tr></table>
 <div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="700" height="300">
   <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
   <text class="title" x="60" y="20">s7: N=15, P=10, 5 rpm -- throughput per 30-min window</text>
@@ -1721,9 +2721,175 @@ Each snap covers 30 min; <code>workMs</code> classifies the DONE as warm (~2 s) 
   <text x="478" y="87">pernode</text>
 </svg>
 </div></div>
+<div class="grid3"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s7: N=15, P=10, 5 rpm -- P50 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P50 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s7: N=15, P=10, 5 rpm -- P90 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P90 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s7: N=15, P=10, 5 rpm -- P99 workMs per window (tail)</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">80</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">120</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">160</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">200</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P99 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div></div>
 <h2>s8 &mdash; N=15, P=10, 30 rpm</h2>
 <p class="caption">Bench dir: <code>n15-sweep/tricast-20260819-073258</code> &middot; target = 30 rpm &rarr; ~2700 jobs over 90 min &middot; N=15 labels, P=10 pods provisioned.</p>
-<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th></tr><tr><td class="topo">baseline</td><td>2684</td><td class="good">99%</td><td>1865</td><td>69.49%</td><td>10 / 10</td><td>10.00</td><td>10&ndash;10</td></tr><tr><td class="topo">central</td><td>2714</td><td class="good">101%</td><td>19</td><td>0.70%</td><td>10 / 10</td><td>1.53</td><td>1&ndash;2</td></tr><tr><td class="topo">pernode</td><td>2704</td><td class="good">100%</td><td>14</td><td>0.52%</td><td>10 / 10</td><td>1.13</td><td>1&ndash;2</td></tr></table>
+<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th><th>P50 s</th><th>P90 s</th><th>P99 s</th></tr><tr><td class="topo">baseline</td><td>2684</td><td class="good">99%</td><td>1865</td><td>69.49%</td><td>10 / 10</td><td>10.00</td><td>10&ndash;10</td><td>45.00</td><td>45.00</td><td>180.00</td></tr><tr><td class="topo">central</td><td>2714</td><td class="good">101%</td><td>19</td><td>0.70%</td><td>10 / 10</td><td>1.53</td><td>1&ndash;2</td><td>2.00</td><td>2.00</td><td>2.01</td></tr><tr><td class="topo">pernode</td><td>2704</td><td class="good">100%</td><td>14</td><td>0.52%</td><td>10 / 10</td><td>1.13</td><td>1&ndash;2</td><td>2.00</td><td>2.00</td><td>2.01</td></tr></table>
 <div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="700" height="300">
   <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
   <text class="title" x="60" y="20">s8: N=15, P=10, 30 rpm -- throughput per 30-min window</text>
@@ -1980,9 +3146,175 @@ Each snap covers 30 min; <code>workMs</code> classifies the DONE as warm (~2 s) 
   <text x="478" y="87">pernode</text>
 </svg>
 </div></div>
+<div class="grid3"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s8: N=15, P=10, 30 rpm -- P50 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P50 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s8: N=15, P=10, 30 rpm -- P90 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P90 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s8: N=15, P=10, 30 rpm -- P99 workMs per window (tail)</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">80</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">120</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">160</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">200</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P99 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="175.6" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,175.6 200.0,175.6 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="175.6" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,175.6 200.0,175.6 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div></div>
 <h2>s9 &mdash; N=15, P=10, 100 rpm</h2>
 <p class="caption">Bench dir: <code>n15-sweep/tricast-20260819-090425</code> &middot; target = 100 rpm &rarr; ~9000 jobs over 90 min &middot; N=15 labels, P=10 pods provisioned.</p>
-<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th></tr><tr><td class="topo">baseline</td><td>6904</td><td class="warn">77%</td><td>4544</td><td>65.82%</td><td>10 / 10</td><td>10.00</td><td>10&ndash;10</td></tr><tr><td class="topo">central</td><td>9040</td><td class="good">100%</td><td>12</td><td>0.13%</td><td>10 / 10</td><td>1.07</td><td>1&ndash;2</td></tr><tr><td class="topo">pernode</td><td>9015</td><td class="good">100%</td><td>12</td><td>0.13%</td><td>10 / 10</td><td>1.07</td><td>1&ndash;2</td></tr></table>
+<table class="summary"><tr><th>topology</th><th>total DONE</th><th>vs target</th><th>cold DONE</th><th>cold %</th><th>pods used (of P)</th><th>avg pods / label</th><th>min-max pods / label</th><th>P50 s</th><th>P90 s</th><th>P99 s</th></tr><tr><td class="topo">baseline</td><td>6904</td><td class="warn">77%</td><td>4544</td><td>65.82%</td><td>10 / 10</td><td>10.00</td><td>10&ndash;10</td><td>45.00</td><td>45.00</td><td>180.00</td></tr><tr><td class="topo">central</td><td>9040</td><td class="good">100%</td><td>12</td><td>0.13%</td><td>10 / 10</td><td>1.07</td><td>1&ndash;2</td><td>2.00</td><td>2.00</td><td>2.01</td></tr><tr><td class="topo">pernode</td><td>9015</td><td class="good">100%</td><td>12</td><td>0.13%</td><td>10 / 10</td><td>1.07</td><td>1&ndash;2</td><td>2.00</td><td>2.00</td><td>2.00</td></tr></table>
 <div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="700" height="300">
   <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
   <text class="title" x="60" y="20">s9: N=15, P=10, 100 rpm -- throughput per 30-min window</text>
@@ -2237,6 +3569,172 @@ Each snap covers 30 min; <code>workMs</code> classifies the DONE as warm (~2 s) 
   <text x="478" y="71">central</text>
   <rect x="460" y="80" width="12" height="8" fill="#2ca02c"/>
   <text x="478" y="87">pernode</text>
+</svg>
+</div></div>
+<div class="grid3"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s9: N=15, P=10, 100 rpm -- P50 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P50 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s9: N=15, P=10, 100 rpm -- P90 workMs per window</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">10</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">20</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">30</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">50</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P90 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="208.0" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,208.0 200.0,208.0 200.0,208.0 340.0,208.0 340.0,208.0 480.0,208.0 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
+</svg>
+</div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" width="500" height="260">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:13px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="20">s9: N=15, P=10, 100 rpm -- P99 workMs per window (tail)</text>
+  <line class="grid" x1="60" y1="215.0" x2="480" y2="215.0"/>
+  <text class="tick" x="54" y="218.0" text-anchor="end">0</text>
+  <line class="grid" x1="60" y1="180.0" x2="480" y2="180.0"/>
+  <text class="tick" x="54" y="183.0" text-anchor="end">40</text>
+  <line class="grid" x1="60" y1="145.0" x2="480" y2="145.0"/>
+  <text class="tick" x="54" y="148.0" text-anchor="end">80</text>
+  <line class="grid" x1="60" y1="110.0" x2="480" y2="110.0"/>
+  <text class="tick" x="54" y="113.0" text-anchor="end">120</text>
+  <line class="grid" x1="60" y1="75.0" x2="480" y2="75.0"/>
+  <text class="tick" x="54" y="78.0" text-anchor="end">160</text>
+  <line class="grid" x1="60" y1="40.0" x2="480" y2="40.0"/>
+  <text class="tick" x="54" y="43.0" text-anchor="end">200</text>
+  <line class="grid" x1="60.0" y1="40" x2="60.0" y2="215"/>
+  <text class="tick" x="60.0" y="229" text-anchor="middle">0m</text>
+  <line class="grid" x1="130.0" y1="40" x2="130.0" y2="215"/>
+  <text class="tick" x="130.0" y="229" text-anchor="middle">15m</text>
+  <line class="grid" x1="200.0" y1="40" x2="200.0" y2="215"/>
+  <text class="tick" x="200.0" y="229" text-anchor="middle">30m</text>
+  <line class="grid" x1="270.0" y1="40" x2="270.0" y2="215"/>
+  <text class="tick" x="270.0" y="229" text-anchor="middle">45m</text>
+  <line class="grid" x1="340.0" y1="40" x2="340.0" y2="215"/>
+  <text class="tick" x="340.0" y="229" text-anchor="middle">60m</text>
+  <line class="grid" x1="410.0" y1="40" x2="410.0" y2="215"/>
+  <text class="tick" x="410.0" y="229" text-anchor="middle">75m</text>
+  <line class="grid" x1="480.0" y1="40" x2="480.0" y2="215"/>
+  <text class="tick" x="480.0" y="229" text-anchor="middle">90m</text>
+  <line class="axis" x1="60" y1="215" x2="480" y2="215"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="215"/>
+  <text x="270" y="247" text-anchor="middle">time (minutes)</text>
+  <text x="14" y="127" transform="rotate(-90 14 127)" text-anchor="middle">P99 latency (s)</text>
+  <circle cx="60.0" cy="215.0" r="3" fill="#d62728"/>
+  <circle cx="200.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="340.0" cy="57.5" r="3" fill="#d62728"/>
+  <circle cx="480.0" cy="57.5" r="3" fill="#d62728"/>
+  <polyline fill="none" stroke="#d62728" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,57.5 200.0,57.5 200.0,57.5 340.0,57.5 340.0,57.5 480.0,57.5 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#1f77b4"/>
+  <circle cx="200.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#1f77b4"/>
+  <polyline fill="none" stroke="#1f77b4" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,213.2 200.0,213.2 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <circle cx="60.0" cy="215.0" r="3" fill="#2ca02c"/>
+  <circle cx="200.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="340.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <circle cx="480.0" cy="213.2" r="3" fill="#2ca02c"/>
+  <polyline fill="none" stroke="#2ca02c" stroke-width="1.8" points="60.0,215.0 60.0,215.0 60.0,213.2 200.0,213.2 200.0,213.2 340.0,213.2 340.0,213.2 480.0,213.2 "/>
+  <rect x="260" y="48" width="14" height="3" fill="#d62728"/>
+  <text x="280" y="53">baseline</text>
+  <rect x="260" y="64" width="14" height="3" fill="#1f77b4"/>
+  <text x="280" y="69">central</text>
+  <rect x="260" y="80" width="14" height="3" fill="#2ca02c"/>
+  <text x="280" y="85">pernode</text>
 </svg>
 </div></div>
 </body></html>

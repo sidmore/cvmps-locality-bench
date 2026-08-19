@@ -1,0 +1,13 @@
+# t_min,topology,latency_s
+0,baseline,0
+30,baseline,45.00
+60,baseline,2.00
+90,baseline,2.00
+0,central,0
+30,central,2.00
+60,central,2.00
+90,central,2.00
+0,pernode,0
+30,pernode,2.00
+60,pernode,2.00
+90,pernode,2.00
