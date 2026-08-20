@@ -1,0 +1,992 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Production Locality Waste -- 3 hot Windows regions</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;color:#222;max-width:1600px;margin:24px auto;padding:0 16px}
+  h1{margin-bottom:4px}
+  h2{margin-top:32px;border-bottom:1px solid #ccc;padding-bottom:4px}
+  .grid2{display:grid;grid-template-columns:repeat(2, minmax(680px, 1fr));gap:10px;margin-bottom:8px}
+  .cell{background:#fff}
+  .caption{color:#333;font-size:12px;margin:2px 0 12px}
+  .meta{color:#333;font-size:12px;background:#f7f7f9;padding:10px 14px;border-left:3px solid #666;border-radius:3px}
+  .callout{color:#333;font-size:13px;background:#fff8e1;padding:10px 14px;border-left:3px solid #d97706;border-radius:3px;margin-top:8px}
+  code{background:#f0f0f0;padding:1px 4px;border-radius:3px;font-size:12px}
+  table.summary{border-collapse:collapse;margin:8px 0;font-size:12px}
+  table.summary th,table.summary td{border:1px solid #ddd;padding:3px 8px;text-align:right}
+  table.summary th{background:#fafafa}
+  table.summary td.topo{text-align:left}
+  .warn{color:#a00;font-weight:600}
+  .good{color:#080;font-weight:600}
+  .kpi{display:inline-block;padding:8px 14px;margin:4px 8px 4px 0;background:#eef;border-radius:4px;font-size:13px}
+  .kpi b{font-size:16px}
+  a{color:#0645ad}
+</style></head><body>
+
+<h1>Production Locality Waste &mdash; Top 3 Windows Regions</h1>
+
+<div class="meta">
+<b>Question.</b> The <a href="../">bench report</a> shows a 90&times; P99 latency improvement and a 5-10&times; fleet-footprint reduction from locality routing.
+This report answers: <i>in production, why are so many encryptions "wasted"? For a given hot region, how many distinct images are being downloaded, at what rate, and to how many nodes?</i>
+
+<br/><br/><b>Data source.</b> Kusto <code>MdmMetrics</code> table on <code>azsectvmcvm.centralus</code>/<code>CVM</code>,
+metric <code>WindowsEncryptionNumberOfRequests</code>, dimension <code>dv[0]=ImageReference</code>, <code>dv[1]=ImageSource</code>, <code>dv[4]=Node</code>. Long-form rows only
+(<code>array_length(dv) == 8</code>); each row is one encryption request. Window = last 7 days, 2h bins for time-series.
+
+<br/><br/><b>Waste model.</b> If a single label (image) is downloaded &amp; encrypted on <code>Nodes</code> distinct nodes but the actual
+distinct request rate would fit on <code>ideal=2</code> nodes (bench-observed 1 warm pod + 1 HA replica),
+<code>wasted&nbsp;=&nbsp;Requests * (1 - ideal/Nodes)</code>. Each wasted encryption is roughly a full ~45 s (small) or ~180 s (large) cold download+decrypt+re-encrypt.
+</div>
+
+<h2>Fleet-wide summary (3 hot regions, 7 d)</h2>
+<div class="kpi">Regions: <b>3</b> (bl, usw3, am)</div>
+<div class="kpi">Fleet nodes: <b>191</b></div>
+<div class="kpi">Distinct hot images (&ge;30 reqs): <b>82</b></div>
+<div class="kpi">Total requests: <b>86,094</b></div>
+<div class="kpi warn">Wasted @ ideal=2: <b>83,199</b> (96.6%)</div>
+<div class="kpi">Reduction factor: <b>29.7&times;</b></div>
+
+<div class="callout">
+<b>Headline finding.</b> Every top image in every region touches essentially the <b>entire fleet</b> (spread 98-100%),
+even though its actual request rate is only <b>1&ndash;25 requests/hour</b>. In every 2-hour window the same image is dispatched to
+&gt;90% of nodes &mdash; each of which pays a full cold-download tax the very first time and rewarms whenever the L1 evicts.
+The bench measured that with locality routing this footprint collapses to <b>1&ndash;2 pods per image (+1 HA replica)</b>
+with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> across the three regions eliminates
+<b>83,199</b> of the <b>86,094</b> weekly requests &mdash; a
+<b>29.7&times; reduction</b> in redundant cold encryptions.
+</div>
+
+<h2>cvmps-win-usw3 &mdash; fleet 51 nodes</h2>
+<p class="caption">7-day window &middot; 32,764 total requests across 23 distinct images (>=30 reqs each) &middot;
+<b class="warn">31,451 wasted encryptions</b> at ideal=2 (96.0%) &middot;
+19 images spread &ge;90% of fleet &middot; 99.0% of requests came from full-fleet-spread images.</p>
+<table class="summary">
+    <tr><th>#</th><th>source</th><th>name</th><th>image id</th><th>reqs (7d)</th><th>nodes</th><th>spread</th><th>req/h</th><th>active h</th><th>wasted @ ideal=2</th><th>waste %</th></tr>
+    <tr>
+    <td>1</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_07_11w2025</td>
+    <td><code>7b653584</code></td>
+    <td>5,482</td>
+    <td>51/51</td>
+    <td class="warn">100.0%</td>
+    <td>32.73</td>
+    <td>168</td>
+    <td class="warn">5,267</td>
+    <td>96.1%</td>
+  </tr><tr>
+    <td>2</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_08_11w2025</td>
+    <td><code>8347543b</code></td>
+    <td>4,251</td>
+    <td>50/51</td>
+    <td class="warn">98.0%</td>
+    <td>25.35</td>
+    <td>168</td>
+    <td class="warn">4,081</td>
+    <td>96.0%</td>
+  </tr><tr>
+    <td>3</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_06_12w2022</td>
+    <td><code>84600692</code></td>
+    <td>3,898</td>
+    <td>50/51</td>
+    <td class="warn">98.0%</td>
+    <td>23.34</td>
+    <td>167</td>
+    <td class="warn">3,742</td>
+    <td>96.0%</td>
+  </tr><tr>
+    <td>4</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2025-datacenter-g2</td>
+    <td><code>84d34b78</code></td>
+    <td>3,518</td>
+    <td>50/51</td>
+    <td class="warn">98.0%</td>
+    <td>20.97</td>
+    <td>168</td>
+    <td class="warn">3,377</td>
+    <td>96.0%</td>
+  </tr><tr>
+    <td>5</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2025-datacenter-azure-edition</td>
+    <td><code>65681556</code></td>
+    <td>2,615</td>
+    <td>50/51</td>
+    <td class="warn">98.0%</td>
+    <td>15.82</td>
+    <td>165</td>
+    <td class="warn">2,510</td>
+    <td>96.0%</td>
+  </tr><tr>
+    <td>6</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2025-datacenter-smalldisk-g2</td>
+    <td><code>53f8418c</code></td>
+    <td>2,432</td>
+    <td>50/51</td>
+    <td class="warn">98.0%</td>
+    <td>14.55</td>
+    <td>167</td>
+    <td class="warn">2,335</td>
+    <td>96.0%</td>
+  </tr><tr>
+    <td>7</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2025-datacenter-azure-edition-smalldisk</td>
+    <td><code>68ae7e02</code></td>
+    <td>2,238</td>
+    <td>50/51</td>
+    <td class="warn">98.0%</td>
+    <td>13.58</td>
+    <td>165</td>
+    <td class="warn">2,148</td>
+    <td>96.0%</td>
+  </tr><tr>
+    <td>8</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2022-datacenter-smalldisk-g2</td>
+    <td><code>b01479cc</code></td>
+    <td>1,699</td>
+    <td>50/51</td>
+    <td class="warn">98.0%</td>
+    <td>10.14</td>
+    <td>168</td>
+    <td class="warn">1,631</td>
+    <td>96.0%</td>
+  </tr><tr>
+    <td>9</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_07_11w2025_exo</td>
+    <td><code>c6faa9bc</code></td>
+    <td>1,257</td>
+    <td>50/51</td>
+    <td class="warn">98.0%</td>
+    <td>7.60</td>
+    <td>166</td>
+    <td class="warn">1,207</td>
+    <td>96.0%</td>
+  </tr><tr>
+    <td>10</td>
+    <td class="topo">PIR</td>
+    <td class="topo"></td>
+    <td><code>8de556ce</code></td>
+    <td>1,166</td>
+    <td>50/51</td>
+    <td class="warn">98.0%</td>
+    <td>6.95</td>
+    <td>168</td>
+    <td class="warn">1,119</td>
+    <td>96.0%</td>
+  </tr><tr>
+    <td>11</td>
+    <td class="topo">OneP</td>
+    <td class="topo">2022-datacenter-azure-edition-smalldisk-</td>
+    <td><code>e14f2d9f</code></td>
+    <td>908</td>
+    <td>50/51</td>
+    <td class="warn">98.0%</td>
+    <td>8.34</td>
+    <td>109</td>
+    <td class="warn">872</td>
+    <td>96.0%</td>
+  </tr><tr>
+    <td>12</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_07_11w2022_exo</td>
+    <td><code>208eac34</code></td>
+    <td>837</td>
+    <td>50/51</td>
+    <td class="warn">98.0%</td>
+    <td>6.02</td>
+    <td>139</td>
+    <td class="warn">804</td>
+    <td>96.1%</td>
+  </tr>
+    <tr><td colspan="4"><b>Region totals (all images >=30 reqs)</b></td>
+        <td><b>32,764</b></td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
+        <td class="warn"><b>31,451</b></td><td class="warn"><b>96.0%</b></td></tr>
+  </table>
+<div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" width="900" height="300">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:12px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="18">cvmps-win-usw3: requests per 2h window (top-5 images by 7d reqs)</text>
+<line class="grid" x1="60" y1="258.0" x2="880" y2="258.0"/>
+<text class="tick" x="54" y="261.0" text-anchor="end">0</text>
+<line class="grid" x1="60" y1="212.8" x2="880" y2="212.8"/>
+<text class="tick" x="54" y="215.8" text-anchor="end">100</text>
+<line class="grid" x1="60" y1="167.6" x2="880" y2="167.6"/>
+<text class="tick" x="54" y="170.6" text-anchor="end">200</text>
+<line class="grid" x1="60" y1="122.4" x2="880" y2="122.4"/>
+<text class="tick" x="54" y="125.4" text-anchor="end">300</text>
+<line class="grid" x1="60" y1="77.2" x2="880" y2="77.2"/>
+<text class="tick" x="54" y="80.2" text-anchor="end">400</text>
+<line class="grid" x1="60" y1="32.0" x2="880" y2="32.0"/>
+<text class="tick" x="54" y="35.0" text-anchor="end">500</text>
+<line class="grid" x1="60.0" y1="32" x2="60.0" y2="258"/>
+<text class="tick" x="60.0" y="270" text-anchor="middle">08-13</text>
+<line class="grid" x1="196.7" y1="32" x2="196.7" y2="258"/>
+<text class="tick" x="196.7" y="270" text-anchor="middle">08-14</text>
+<line class="grid" x1="333.3" y1="32" x2="333.3" y2="258"/>
+<text class="tick" x="333.3" y="270" text-anchor="middle">08-16</text>
+<line class="grid" x1="470.0" y1="32" x2="470.0" y2="258"/>
+<text class="tick" x="470.0" y="270" text-anchor="middle">08-17</text>
+<line class="grid" x1="606.7" y1="32" x2="606.7" y2="258"/>
+<text class="tick" x="606.7" y="270" text-anchor="middle">08-18</text>
+<line class="grid" x1="743.3" y1="32" x2="743.3" y2="258"/>
+<text class="tick" x="743.3" y="270" text-anchor="middle">08-19</text>
+<line class="grid" x1="880.0" y1="32" x2="880.0" y2="258"/>
+<text class="tick" x="880.0" y="270" text-anchor="middle">08-20</text>
+<line class="axis" x1="60" y1="258" x2="880" y2="258"/>
+<line class="axis" x1="60" y1="32" x2="60" y2="258"/>
+<text x="470" y="294" text-anchor="middle">time (UTC)</text>
+<text x="14" y="145" transform="rotate(-90 14 145)" text-anchor="middle">requests / 2h</text>
+<polyline fill="none" stroke="#d62728" stroke-width="1.6" points="60.0,187.0 69.8,178.4 79.5,211.9 89.3,251.7 99.0,257.1 118.6,42.8 128.3,252.6 138.1,257.5 206.4,129.6 216.2,59.6 226.0,67.3 235.7,135.1 245.5,216.9 255.2,247.2 265.0,256.2 284.5,237.7 294.3,254.4 304.0,249.9 313.8,220.0 323.6,218.7 372.4,236.3 382.1,219.1 391.9,221.4 401.7,185.2 411.4,241.3 431.0,252.6 440.7,235.4 450.5,232.7 460.2,221.8 470.0,203.3 479.8,230.4 489.5,249.9 499.3,236.3 509.0,230.0 518.8,256.2 528.6,145.5 538.3,178.4 548.1,231.3 557.9,239.0 567.6,256.6 587.1,220.5 596.9,254.4 606.7,210.5 616.4,240.8 626.2,232.2 636.0,229.5 645.7,232.7 655.5,235.4 665.2,226.4 675.0,229.1 684.8,229.5 694.5,225.5 704.3,221.8 714.0,244.0 723.8,222.7 733.6,239.5 743.3,152.7 753.1,246.7 772.6,244.4 801.9,252.6 811.7,255.3 821.4,254.8 831.2,251.7 841.0,254.8 850.7,253.9 860.5,257.5 870.2,255.3 880.0,256.6"/>
+<polyline fill="none" stroke="#1f77b4" stroke-width="1.6" points="60.0,227.7 69.8,232.2 79.5,219.6 89.3,174.4 99.0,245.8 108.8,245.3 118.6,253.0 138.1,253.5 157.6,255.3 186.9,250.3 196.7,230.4 206.4,253.5 216.2,248.5 226.0,256.2 235.7,244.9 245.5,242.2 255.2,218.2 265.0,238.6 274.8,244.0 294.3,240.8 304.0,242.2 333.3,247.6 343.1,230.9 352.9,241.7 362.6,228.6 372.4,174.4 382.1,239.9 391.9,239.0 401.7,249.4 411.4,204.2 421.2,236.8 431.0,241.7 440.7,226.4 450.5,239.9 460.2,250.3 470.0,217.3 479.8,236.8 489.5,244.9 499.3,236.8 509.0,243.5 518.8,243.5 528.6,233.6 538.3,253.5 557.9,233.6 567.6,223.2 577.4,246.2 587.1,235.9 596.9,244.0 606.7,248.1 616.4,239.5 626.2,240.4 636.0,251.7 645.7,240.8 655.5,239.0 665.2,255.7 675.0,226.8 694.5,229.1 704.3,240.8 733.6,224.1 753.1,246.2 762.9,224.1 772.6,219.6 782.4,157.7 792.1,185.2 801.9,211.9 811.7,214.6 821.4,166.2 831.2,246.2 841.0,230.9 850.7,153.6 860.5,204.7 870.2,213.3 880.0,242.2"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="1.6" points="60.0,247.6 69.8,253.9 79.5,256.2 89.3,251.7 99.0,256.2 147.9,252.1 157.6,255.3 177.1,252.1 196.7,201.0 206.4,204.7 265.0,145.0 274.8,231.3 294.3,210.1 304.0,246.2 313.8,257.5 323.6,213.7 333.3,209.6 352.9,237.7 362.6,230.0 372.4,245.8 382.1,257.5 391.9,211.0 401.7,244.4 411.4,251.7 421.2,212.8 431.0,207.4 440.7,249.4 450.5,228.2 460.2,200.6 470.0,244.4 479.8,250.3 489.5,165.8 499.3,257.1 518.8,194.7 528.6,239.0 538.3,257.1 548.1,217.3 557.9,219.1 567.6,230.0 577.4,235.9 587.1,223.2 596.9,208.7 606.7,257.1 616.4,216.9 626.2,217.8 645.7,210.1 655.5,211.0 675.0,239.5 684.8,205.1 704.3,250.3 714.0,178.9 723.8,247.6 743.3,225.0 753.1,243.5 762.9,256.6 772.6,217.3 782.4,238.1 811.7,216.9 831.2,249.4 841.0,219.1 870.2,221.4 880.0,249.0"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="1.6" points="60.0,239.5 69.8,222.7 79.5,236.8 89.3,256.6 99.0,256.2 108.8,239.9 118.6,255.3 128.3,237.2 138.1,235.9 147.9,244.9 157.6,247.2 167.4,237.7 177.1,250.8 186.9,253.9 196.7,253.9 206.4,244.9 235.7,244.0 245.5,253.5 255.2,224.1 265.0,236.3 274.8,224.6 284.5,242.2 294.3,246.7 304.0,248.5 313.8,229.5 323.6,240.4 333.3,228.2 343.1,242.6 352.9,253.5 362.6,257.5 372.4,229.5 382.1,244.0 391.9,236.3 401.7,204.2 411.4,233.6 421.2,236.3 431.0,244.0 440.7,234.9 450.5,232.7 460.2,238.1 470.0,218.7 479.8,228.2 489.5,237.7 499.3,233.6 509.0,241.3 518.8,235.9 528.6,232.2 538.3,239.0 548.1,249.0 557.9,236.8 567.6,225.9 577.4,244.0 587.1,237.7 596.9,211.9 606.7,233.6 616.4,231.8 626.2,239.0 636.0,214.2 645.7,246.7 655.5,230.9 665.2,236.8 675.0,247.6 684.8,229.1 694.5,239.9 704.3,227.3 714.0,238.1 723.8,218.2 733.6,230.0 743.3,251.7 753.1,216.4 762.9,248.5 772.6,244.4 782.4,241.7 792.1,256.2 801.9,244.9 811.7,234.9 821.4,248.5 831.2,231.8 841.0,240.8 850.7,256.6 860.5,257.1 870.2,243.1 880.0,253.5"/>
+<polyline fill="none" stroke="#9467bd" stroke-width="1.6" points="69.8,227.7 79.5,234.0 108.8,250.8 128.3,242.6 138.1,257.5 157.6,245.8 167.4,256.2 186.9,257.1 196.7,236.3 235.7,255.7 245.5,240.8 255.2,230.0 265.0,240.8 274.8,225.9 284.5,247.2 294.3,252.1 304.0,248.1 313.8,233.6 323.6,239.5 333.3,253.9 343.1,249.0 352.9,247.2 372.4,238.1 382.1,242.2 391.9,236.8 401.7,225.5 411.4,242.2 421.2,240.4 431.0,230.0 440.7,240.4 450.5,232.7 460.2,241.7 470.0,234.9 479.8,229.1 489.5,228.6 509.0,235.4 518.8,234.5 528.6,252.1 538.3,239.5 548.1,245.8 557.9,247.6 567.6,222.7 577.4,254.4 587.1,245.3 596.9,228.2 606.7,234.5 616.4,241.3 626.2,227.3 636.0,228.2 645.7,241.7 655.5,236.3 665.2,234.5 675.0,252.6 684.8,246.7 694.5,234.0 704.3,248.5 714.0,231.8 723.8,219.6 733.6,253.0 753.1,224.6 762.9,239.5 772.6,248.1 782.4,240.8 801.9,254.8 811.7,246.7 831.2,239.0 850.7,253.9 860.5,254.8 870.2,248.1"/>
+<rect x="660" y="38" width="14" height="3" fill="#d62728"/>
+<text x="678" y="43" font-size="10">7b653584</text>
+<rect x="660" y="50" width="14" height="3" fill="#1f77b4"/>
+<text x="678" y="55" font-size="10">8347543b</text>
+<rect x="660" y="62" width="14" height="3" fill="#2ca02c"/>
+<text x="678" y="67" font-size="10">84600692</text>
+<rect x="660" y="74" width="14" height="3" fill="#ff7f0e"/>
+<text x="678" y="79" font-size="10">84d34b78</text>
+<rect x="660" y="86" width="14" height="3" fill="#9467bd"/>
+<text x="678" y="91" font-size="10">65681556</text>
+</svg></div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" width="900" height="300">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:12px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="18">cvmps-win-usw3: cumulative distinct nodes touched (top-5)</text>
+<line class="grid" x1="60" y1="258.0" x2="880" y2="258.0"/>
+<text class="tick" x="54" y="261.0" text-anchor="end">0</text>
+<line class="grid" x1="60" y1="212.8" x2="880" y2="212.8"/>
+<text class="tick" x="54" y="215.8" text-anchor="end">20</text>
+<line class="grid" x1="60" y1="167.6" x2="880" y2="167.6"/>
+<text class="tick" x="54" y="170.6" text-anchor="end">40</text>
+<line class="grid" x1="60" y1="122.4" x2="880" y2="122.4"/>
+<text class="tick" x="54" y="125.4" text-anchor="end">60</text>
+<line class="grid" x1="60" y1="77.2" x2="880" y2="77.2"/>
+<text class="tick" x="54" y="80.2" text-anchor="end">80</text>
+<line class="grid" x1="60" y1="32.0" x2="880" y2="32.0"/>
+<text class="tick" x="54" y="35.0" text-anchor="end">100</text>
+<line class="grid" x1="60.0" y1="32" x2="60.0" y2="258"/>
+<text class="tick" x="60.0" y="270" text-anchor="middle">08-13</text>
+<line class="grid" x1="196.7" y1="32" x2="196.7" y2="258"/>
+<text class="tick" x="196.7" y="270" text-anchor="middle">08-14</text>
+<line class="grid" x1="333.3" y1="32" x2="333.3" y2="258"/>
+<text class="tick" x="333.3" y="270" text-anchor="middle">08-16</text>
+<line class="grid" x1="470.0" y1="32" x2="470.0" y2="258"/>
+<text class="tick" x="470.0" y="270" text-anchor="middle">08-17</text>
+<line class="grid" x1="606.7" y1="32" x2="606.7" y2="258"/>
+<text class="tick" x="606.7" y="270" text-anchor="middle">08-18</text>
+<line class="grid" x1="743.3" y1="32" x2="743.3" y2="258"/>
+<text class="tick" x="743.3" y="270" text-anchor="middle">08-19</text>
+<line class="grid" x1="880.0" y1="32" x2="880.0" y2="258"/>
+<text class="tick" x="880.0" y="270" text-anchor="middle">08-20</text>
+<line class="axis" x1="60" y1="258" x2="880" y2="258"/>
+<line class="axis" x1="60" y1="32" x2="60" y2="258"/>
+<text x="470" y="294" text-anchor="middle">time (UTC)</text>
+<text x="14" y="145" transform="rotate(-90 14 145)" text-anchor="middle">distinct nodes</text>
+<polyline fill="none" stroke="#d62728" stroke-width="1.6" points="60.0,147.3 69.8,147.3 79.5,147.3 89.3,147.3 99.0,147.3 118.6,142.7 128.3,142.7 138.1,142.7 206.4,142.7 216.2,142.7 226.0,142.7 235.7,142.7 245.5,142.7 255.2,142.7 265.0,142.7 284.5,142.7 294.3,142.7 304.0,142.7 313.8,142.7 323.6,142.7 372.4,142.7 382.1,142.7 391.9,142.7 401.7,142.7 411.4,142.7 431.0,142.7 440.7,142.7 450.5,142.7 460.2,142.7 470.0,142.7 479.8,142.7 489.5,142.7 499.3,142.7 509.0,142.7 518.8,142.7 528.6,142.7 538.3,142.7 548.1,142.7 557.9,142.7 567.6,142.7 587.1,142.7 596.9,142.7 606.7,142.7 616.4,142.7 626.2,142.7 636.0,142.7 645.7,142.7 655.5,142.7 665.2,142.7 675.0,142.7 684.8,142.7 694.5,142.7 704.3,142.7 714.0,142.7 723.8,142.7 733.6,142.7 743.3,142.7 753.1,142.7 772.6,142.7 801.9,142.7 811.7,142.7 821.4,142.7 831.2,142.7 841.0,142.7 850.7,142.7 860.5,142.7 870.2,142.7 880.0,142.7"/>
+<polyline fill="none" stroke="#1f77b4" stroke-width="1.6" points="60.0,158.6 69.8,158.6 79.5,149.5 89.3,145.0 99.0,145.0 108.8,145.0 118.6,145.0 138.1,145.0 157.6,145.0 186.9,145.0 196.7,145.0 206.4,145.0 216.2,145.0 226.0,145.0 235.7,145.0 245.5,145.0 255.2,145.0 265.0,145.0 274.8,145.0 294.3,145.0 304.0,145.0 333.3,145.0 343.1,145.0 352.9,145.0 362.6,145.0 372.4,145.0 382.1,145.0 391.9,145.0 401.7,145.0 411.4,145.0 421.2,145.0 431.0,145.0 440.7,145.0 450.5,145.0 460.2,145.0 470.0,145.0 479.8,145.0 489.5,145.0 499.3,145.0 509.0,145.0 518.8,145.0 528.6,145.0 538.3,145.0 557.9,145.0 567.6,145.0 577.4,145.0 587.1,145.0 596.9,145.0 606.7,145.0 616.4,145.0 626.2,145.0 636.0,145.0 645.7,145.0 655.5,145.0 665.2,145.0 675.0,145.0 694.5,145.0 704.3,145.0 733.6,145.0 753.1,145.0 762.9,145.0 772.6,145.0 782.4,145.0 792.1,145.0 801.9,145.0 811.7,145.0 821.4,145.0 831.2,145.0 841.0,145.0 850.7,145.0 860.5,145.0 870.2,145.0 880.0,145.0"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="1.6" points="60.0,210.5 69.8,210.5 79.5,210.5 89.3,210.5 99.0,210.5 147.9,210.5 157.6,210.5 177.1,210.5 196.7,145.0 206.4,145.0 265.0,145.0 274.8,145.0 294.3,145.0 304.0,145.0 313.8,145.0 323.6,145.0 333.3,145.0 352.9,145.0 362.6,145.0 372.4,145.0 382.1,145.0 391.9,145.0 401.7,145.0 411.4,145.0 421.2,145.0 431.0,145.0 440.7,145.0 450.5,145.0 460.2,145.0 470.0,145.0 479.8,145.0 489.5,145.0 499.3,145.0 518.8,145.0 528.6,145.0 538.3,145.0 548.1,145.0 557.9,145.0 567.6,145.0 577.4,145.0 587.1,145.0 596.9,145.0 606.7,145.0 616.4,145.0 626.2,145.0 645.7,145.0 655.5,145.0 675.0,145.0 684.8,145.0 704.3,145.0 714.0,145.0 723.8,145.0 743.3,145.0 753.1,145.0 762.9,145.0 772.6,145.0 782.4,145.0 811.7,145.0 831.2,145.0 841.0,145.0 870.2,145.0 880.0,145.0"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="1.6" points="60.0,187.9 69.8,158.6 79.5,158.6 89.3,158.6 99.0,158.6 108.8,158.6 118.6,158.6 128.3,158.6 138.1,158.6 147.9,158.6 157.6,158.6 167.4,158.6 177.1,158.6 186.9,158.6 196.7,158.6 206.4,158.6 235.7,158.6 245.5,158.6 255.2,158.6 265.0,158.6 274.8,158.6 284.5,158.6 294.3,158.6 304.0,158.6 313.8,158.6 323.6,158.6 333.3,158.6 343.1,158.6 352.9,158.6 362.6,158.6 372.4,158.6 382.1,158.6 391.9,158.6 401.7,147.3 411.4,147.3 421.2,147.3 431.0,147.3 440.7,147.3 450.5,147.3 460.2,147.3 470.0,147.3 479.8,147.3 489.5,147.3 499.3,147.3 509.0,147.3 518.8,147.3 528.6,147.3 538.3,147.3 548.1,147.3 557.9,147.3 567.6,147.3 577.4,147.3 587.1,147.3 596.9,147.3 606.7,147.3 616.4,147.3 626.2,147.3 636.0,147.3 645.7,147.3 655.5,147.3 665.2,147.3 675.0,147.3 684.8,147.3 694.5,147.3 704.3,147.3 714.0,147.3 723.8,147.3 733.6,147.3 743.3,147.3 753.1,147.3 762.9,147.3 772.6,147.3 782.4,147.3 792.1,147.3 801.9,147.3 811.7,147.3 821.4,147.3 831.2,147.3 841.0,147.3 850.7,147.3 860.5,147.3 870.2,147.3 880.0,147.3"/>
+<polyline fill="none" stroke="#9467bd" stroke-width="1.6" points="69.8,169.9 79.5,169.9 108.8,169.9 128.3,169.9 138.1,169.9 157.6,169.9 167.4,169.9 186.9,169.9 196.7,169.9 235.7,169.9 245.5,169.9 255.2,169.9 265.0,169.9 274.8,167.6 284.5,167.6 294.3,167.6 304.0,167.6 313.8,167.6 323.6,167.6 333.3,167.6 343.1,167.6 352.9,167.6 372.4,167.6 382.1,167.6 391.9,167.6 401.7,156.3 411.4,156.3 421.2,156.3 431.0,156.3 440.7,156.3 450.5,156.3 460.2,156.3 470.0,156.3 479.8,156.3 489.5,156.3 509.0,156.3 518.8,156.3 528.6,156.3 538.3,156.3 548.1,156.3 557.9,156.3 567.6,156.3 577.4,156.3 587.1,156.3 596.9,156.3 606.7,156.3 616.4,156.3 626.2,156.3 636.0,156.3 645.7,156.3 655.5,156.3 665.2,156.3 675.0,156.3 684.8,156.3 694.5,156.3 704.3,156.3 714.0,156.3 723.8,156.3 733.6,156.3 753.1,156.3 762.9,156.3 772.6,156.3 782.4,156.3 801.9,156.3 811.7,156.3 831.2,156.3 850.7,156.3 860.5,156.3 870.2,156.3"/>
+<line class="tgt" x1="60" y1="142.7" x2="880" y2="142.7"/>
+<text class="tick" x="66" y="139.7" fill="#666">fleet size = 51</text>
+<rect x="660" y="38" width="14" height="3" fill="#d62728"/>
+<text x="678" y="43" font-size="10">7b653584</text>
+<rect x="660" y="50" width="14" height="3" fill="#1f77b4"/>
+<text x="678" y="55" font-size="10">8347543b</text>
+<rect x="660" y="62" width="14" height="3" fill="#2ca02c"/>
+<text x="678" y="67" font-size="10">84600692</text>
+<rect x="660" y="74" width="14" height="3" fill="#ff7f0e"/>
+<text x="678" y="79" font-size="10">84d34b78</text>
+<rect x="660" y="86" width="14" height="3" fill="#9467bd"/>
+<text x="678" y="91" font-size="10">65681556</text>
+</svg></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" width="900" height="360">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:12px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="18">cvmps-win-usw3: fleet footprint (nodes touched / fleet size, top 15)</text>
+<line class="tgt" x1="840.0" y1="32" x2="840.0" y2="334"/>
+<text class="tick" x="840.0" y="28" text-anchor="middle" fill="#666">fleet=51</text>
+<line class="axis" x1="190" y1="32" x2="190" y2="334"/>
+<line class="axis" x1="190" y1="334" x2="840" y2="334"/>
+<rect x="190" y="34.0" width="650.0" height="16.1" fill="#d62728" fill-opacity="0.75"/>
+<text x="184" y="49.1" text-anchor="end" font-size="10">cvms_26_07_11w2025</text>
+<text x="844.0" y="49.1" font-size="10">51/51</text>
+<rect x="190" y="54.1" width="637.3" height="16.1" fill="#1f77b4" fill-opacity="0.75"/>
+<text x="184" y="69.3" text-anchor="end" font-size="10">cvms_26_08_11w2025</text>
+<text x="831.3" y="69.3" font-size="10">50/51</text>
+<rect x="190" y="74.3" width="637.3" height="16.1" fill="#2ca02c" fill-opacity="0.75"/>
+<text x="184" y="89.4" text-anchor="end" font-size="10">cvms_26_06_12w2022</text>
+<text x="831.3" y="89.4" font-size="10">50/51</text>
+<rect x="190" y="94.4" width="637.3" height="16.1" fill="#ff7f0e" fill-opacity="0.75"/>
+<text x="184" y="109.5" text-anchor="end" font-size="10">2025-datacenter-g2</text>
+<text x="831.3" y="109.5" font-size="10">50/51</text>
+<rect x="190" y="114.5" width="637.3" height="16.1" fill="#9467bd" fill-opacity="0.75"/>
+<text x="184" y="129.7" text-anchor="end" font-size="10">2025-datacenter-azure-edit</text>
+<text x="831.3" y="129.7" font-size="10">50/51</text>
+<rect x="190" y="134.7" width="637.3" height="16.1" fill="#8c564b" fill-opacity="0.75"/>
+<text x="184" y="149.8" text-anchor="end" font-size="10">2025-datacenter-smalldisk-</text>
+<text x="831.3" y="149.8" font-size="10">50/51</text>
+<rect x="190" y="154.8" width="637.3" height="16.1" fill="#e377c2" fill-opacity="0.75"/>
+<text x="184" y="169.9" text-anchor="end" font-size="10">2025-datacenter-azure-edit</text>
+<text x="831.3" y="169.9" font-size="10">50/51</text>
+<rect x="190" y="174.9" width="637.3" height="16.1" fill="#17becf" fill-opacity="0.75"/>
+<text x="184" y="190.1" text-anchor="end" font-size="10">2022-datacenter-smalldisk-</text>
+<text x="831.3" y="190.1" font-size="10">50/51</text>
+<rect x="190" y="195.1" width="637.3" height="16.1" fill="#bcbd22" fill-opacity="0.75"/>
+<text x="184" y="210.2" text-anchor="end" font-size="10">cvms_26_07_11w2025_exo</text>
+<text x="831.3" y="210.2" font-size="10">50/51</text>
+<rect x="190" y="215.2" width="637.3" height="16.1" fill="#7f7f7f" fill-opacity="0.75"/>
+<text x="184" y="230.3" text-anchor="end" font-size="10">PIR</text>
+<text x="831.3" y="230.3" font-size="10">50/51</text>
+<rect x="190" y="235.3" width="637.3" height="16.1" fill="#d62728" fill-opacity="0.75"/>
+<text x="184" y="250.5" text-anchor="end" font-size="10">2022-datacenter-azure-edit</text>
+<text x="831.3" y="250.5" font-size="10">50/51</text>
+<rect x="190" y="255.5" width="637.3" height="16.1" fill="#1f77b4" fill-opacity="0.75"/>
+<text x="184" y="270.6" text-anchor="end" font-size="10">cvms_26_07_11w2022_exo</text>
+<text x="831.3" y="270.6" font-size="10">50/51</text>
+<rect x="190" y="275.6" width="637.3" height="16.1" fill="#2ca02c" fill-opacity="0.75"/>
+<text x="184" y="290.7" text-anchor="end" font-size="10">2022-datacenter-azure-edit</text>
+<text x="831.3" y="290.7" font-size="10">50/51</text>
+<rect x="190" y="295.7" width="637.3" height="16.1" fill="#ff7f0e" fill-opacity="0.75"/>
+<text x="184" y="310.9" text-anchor="end" font-size="10">cvms_26_08_10w2022</text>
+<text x="831.3" y="310.9" font-size="10">50/51</text>
+<rect x="190" y="315.9" width="599.0" height="16.1" fill="#9467bd" fill-opacity="0.75"/>
+<text x="184" y="331.0" text-anchor="end" font-size="10">2022-datacenter-azure-edit</text>
+<text x="793.0" y="331.0" font-size="10">47/51</text>
+</svg></div>
+<h2>cvmps-win-bl &mdash; fleet 80 nodes</h2>
+<p class="caption">7-day window &middot; 26,761 total requests across 39 distinct images (>=30 reqs each) &middot;
+<b class="warn">26,072 wasted encryptions</b> at ideal=2 (97.4%) &middot;
+21 images spread &ge;90% of fleet &middot; 94.3% of requests came from full-fleet-spread images.</p>
+<table class="summary">
+    <tr><th>#</th><th>source</th><th>name</th><th>image id</th><th>reqs (7d)</th><th>nodes</th><th>spread</th><th>req/h</th><th>active h</th><th>wasted @ ideal=2</th><th>waste %</th></tr>
+    <tr>
+    <td>1</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_08_11w2025</td>
+    <td><code>8347543b</code></td>
+    <td>3,086</td>
+    <td>80/80</td>
+    <td class="warn">100.0%</td>
+    <td>18.85</td>
+    <td>164</td>
+    <td class="warn">3,009</td>
+    <td>97.5%</td>
+  </tr><tr>
+    <td>2</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_07_11w2025</td>
+    <td><code>7b653584</code></td>
+    <td>2,944</td>
+    <td>80/80</td>
+    <td class="warn">100.0%</td>
+    <td>17.57</td>
+    <td>168</td>
+    <td class="warn">2,870</td>
+    <td>97.5%</td>
+  </tr><tr>
+    <td>3</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2025-datacenter-azure-edition</td>
+    <td><code>65681556</code></td>
+    <td>2,737</td>
+    <td>80/80</td>
+    <td class="warn">100.0%</td>
+    <td>16.48</td>
+    <td>166</td>
+    <td class="warn">2,669</td>
+    <td>97.5%</td>
+  </tr><tr>
+    <td>4</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2022-datacenter-smalldisk-g2</td>
+    <td><code>b01479cc</code></td>
+    <td>2,596</td>
+    <td>80/80</td>
+    <td class="warn">100.0%</td>
+    <td>15.47</td>
+    <td>168</td>
+    <td class="warn">2,531</td>
+    <td>97.5%</td>
+  </tr><tr>
+    <td>5</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2025-datacenter-smalldisk-g2</td>
+    <td><code>53f8418c</code></td>
+    <td>2,563</td>
+    <td>80/80</td>
+    <td class="warn">100.0%</td>
+    <td>15.27</td>
+    <td>168</td>
+    <td class="warn">2,499</td>
+    <td>97.5%</td>
+  </tr><tr>
+    <td>6</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_08_11w2025_exo</td>
+    <td><code>15bcde25</code></td>
+    <td>2,444</td>
+    <td>80/80</td>
+    <td class="warn">100.0%</td>
+    <td>17.00</td>
+    <td>144</td>
+    <td class="warn">2,383</td>
+    <td>97.5%</td>
+  </tr><tr>
+    <td>7</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_07_11w2025_exo</td>
+    <td><code>c6faa9bc</code></td>
+    <td>1,568</td>
+    <td>80/80</td>
+    <td class="warn">100.0%</td>
+    <td>9.39</td>
+    <td>167</td>
+    <td class="warn">1,529</td>
+    <td>97.5%</td>
+  </tr><tr>
+    <td>8</td>
+    <td class="topo">PIR</td>
+    <td class="topo"></td>
+    <td><code>8de556ce</code></td>
+    <td>1,172</td>
+    <td>80/80</td>
+    <td class="warn">100.0%</td>
+    <td>6.99</td>
+    <td>168</td>
+    <td class="warn">1,143</td>
+    <td>97.5%</td>
+  </tr><tr>
+    <td>9</td>
+    <td class="topo">SIG</td>
+    <td class="topo">windows-cvm-ws2025-smalldisk</td>
+    <td><code>1ba6eef6</code></td>
+    <td>1,022</td>
+    <td>80/80</td>
+    <td class="warn">100.0%</td>
+    <td>6.10</td>
+    <td>168</td>
+    <td class="warn">996</td>
+    <td>97.5%</td>
+  </tr><tr>
+    <td>10</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_06_13w2025</td>
+    <td><code>8d97ce21</code></td>
+    <td>862</td>
+    <td>80/80</td>
+    <td class="warn">100.0%</td>
+    <td>5.27</td>
+    <td>164</td>
+    <td class="warn">840</td>
+    <td>97.4%</td>
+  </tr><tr>
+    <td>11</td>
+    <td class="topo">SIG</td>
+    <td class="topo">windows-cvm-ws2022-wpa</td>
+    <td><code>7342ece8</code></td>
+    <td>823</td>
+    <td>80/80</td>
+    <td class="warn">100.0%</td>
+    <td>4.95</td>
+    <td>166</td>
+    <td class="warn">802</td>
+    <td>97.4%</td>
+  </tr><tr>
+    <td>12</td>
+    <td class="topo">SIG</td>
+    <td class="topo">id_2025core1p_stage3_v2_cvm</td>
+    <td><code>2d90b4ec</code></td>
+    <td>509</td>
+    <td>80/80</td>
+    <td class="warn">100.0%</td>
+    <td>9.71</td>
+    <td>52</td>
+    <td class="warn">496</td>
+    <td>97.4%</td>
+  </tr>
+    <tr><td colspan="4"><b>Region totals (all images >=30 reqs)</b></td>
+        <td><b>26,761</b></td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
+        <td class="warn"><b>26,072</b></td><td class="warn"><b>97.4%</b></td></tr>
+  </table>
+<div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" width="900" height="300">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:12px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="18">cvmps-win-bl: requests per 2h window (top-5 images by 7d reqs)</text>
+<line class="grid" x1="60" y1="258.0" x2="880" y2="258.0"/>
+<text class="tick" x="54" y="261.0" text-anchor="end">0</text>
+<line class="grid" x1="60" y1="212.8" x2="880" y2="212.8"/>
+<text class="tick" x="54" y="215.8" text-anchor="end">100</text>
+<line class="grid" x1="60" y1="167.6" x2="880" y2="167.6"/>
+<text class="tick" x="54" y="170.6" text-anchor="end">200</text>
+<line class="grid" x1="60" y1="122.4" x2="880" y2="122.4"/>
+<text class="tick" x="54" y="125.4" text-anchor="end">300</text>
+<line class="grid" x1="60" y1="77.2" x2="880" y2="77.2"/>
+<text class="tick" x="54" y="80.2" text-anchor="end">400</text>
+<line class="grid" x1="60" y1="32.0" x2="880" y2="32.0"/>
+<text class="tick" x="54" y="35.0" text-anchor="end">500</text>
+<line class="grid" x1="60.0" y1="32" x2="60.0" y2="258"/>
+<text class="tick" x="60.0" y="270" text-anchor="middle">08-13</text>
+<line class="grid" x1="196.7" y1="32" x2="196.7" y2="258"/>
+<text class="tick" x="196.7" y="270" text-anchor="middle">08-14</text>
+<line class="grid" x1="333.3" y1="32" x2="333.3" y2="258"/>
+<text class="tick" x="333.3" y="270" text-anchor="middle">08-16</text>
+<line class="grid" x1="470.0" y1="32" x2="470.0" y2="258"/>
+<text class="tick" x="470.0" y="270" text-anchor="middle">08-17</text>
+<line class="grid" x1="606.7" y1="32" x2="606.7" y2="258"/>
+<text class="tick" x="606.7" y="270" text-anchor="middle">08-18</text>
+<line class="grid" x1="743.3" y1="32" x2="743.3" y2="258"/>
+<text class="tick" x="743.3" y="270" text-anchor="middle">08-19</text>
+<line class="grid" x1="880.0" y1="32" x2="880.0" y2="258"/>
+<text class="tick" x="880.0" y="270" text-anchor="middle">08-20</text>
+<line class="axis" x1="60" y1="258" x2="880" y2="258"/>
+<line class="axis" x1="60" y1="32" x2="60" y2="258"/>
+<text x="470" y="294" text-anchor="middle">time (UTC)</text>
+<text x="14" y="145" transform="rotate(-90 14 145)" text-anchor="middle">requests / 2h</text>
+<polyline fill="none" stroke="#d62728" stroke-width="1.6" points="79.5,246.7 89.3,177.5 99.0,234.0 108.8,241.7 118.6,242.2 128.3,247.2 138.1,246.7 147.9,241.3 157.6,252.1 167.4,256.6 177.1,248.1 186.9,231.8 196.7,197.9 206.4,201.5 216.2,245.8 226.0,244.0 235.7,246.7 245.5,247.6 255.2,249.4 265.0,247.6 274.8,245.3 284.5,249.9 304.0,254.4 313.8,248.5 323.6,240.4 333.3,257.5 372.4,240.8 382.1,219.6 391.9,218.2 401.7,242.2 411.4,207.8 421.2,245.8 431.0,248.5 440.7,246.2 450.5,252.6 489.5,256.2 499.3,249.4 509.0,254.4 528.6,234.5 538.3,219.6 548.1,246.2 557.9,248.1 567.6,246.2 577.4,251.2 587.1,246.7 596.9,250.3 606.7,254.8 645.7,197.4 704.3,246.7 714.0,238.6 723.8,247.6 733.6,236.3 743.3,244.9 753.1,225.0 762.9,220.5 772.6,229.5 782.4,185.7 792.1,215.5 801.9,191.1 811.7,234.9 831.2,225.9 841.0,222.7 850.7,238.1 860.5,239.0 870.2,226.8 880.0,244.9"/>
+<polyline fill="none" stroke="#1f77b4" stroke-width="1.6" points="60.0,257.1 69.8,256.6 79.5,253.9 89.3,256.6 99.0,256.6 108.8,257.5 118.6,133.2 147.9,241.7 157.6,215.5 167.4,192.9 177.1,230.4 186.9,244.9 196.7,245.8 206.4,245.8 255.2,253.0 265.0,239.0 274.8,239.0 284.5,245.3 294.3,226.4 304.0,221.8 313.8,231.8 323.6,240.4 333.3,257.5 362.6,254.4 372.4,253.0 382.1,249.4 391.9,254.8 401.7,238.1 411.4,255.7 421.2,253.0 431.0,256.2 440.7,255.7 450.5,249.9 460.2,251.2 470.0,196.1 479.8,199.7 489.5,239.9 499.3,239.5 509.0,246.2 518.8,249.0 528.6,249.4 538.3,255.3 548.1,254.4 557.9,245.3 567.6,256.2 577.4,255.3 587.1,234.0 596.9,253.0 606.7,257.1 616.4,257.5 626.2,256.2 636.0,254.4 645.7,249.9 655.5,253.9 665.2,254.4 675.0,244.0 684.8,253.9 694.5,252.6 704.3,234.0 714.0,214.6 723.8,183.4 733.6,247.2 743.3,219.1 753.1,245.3 762.9,244.4 772.6,251.7 782.4,222.3 792.1,230.4 801.9,255.3 811.7,231.8 821.4,172.6 831.2,245.3 850.7,256.6 860.5,211.4 870.2,234.5 880.0,255.3"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="1.6" points="69.8,233.1 79.5,243.5 89.3,241.7 99.0,256.6 108.8,254.4 118.6,249.9 128.3,250.3 138.1,235.4 147.9,233.1 157.6,225.0 167.4,221.8 177.1,236.3 186.9,243.1 196.7,244.4 206.4,221.8 216.2,236.8 226.0,252.6 235.7,257.1 245.5,253.9 255.2,256.2 265.0,236.3 274.8,222.7 284.5,218.7 294.3,238.1 304.0,243.5 313.8,241.3 323.6,244.0 333.3,256.6 343.1,254.8 352.9,257.5 362.6,252.1 372.4,254.8 382.1,242.6 391.9,228.2 401.7,253.5 411.4,236.8 421.2,254.8 431.0,233.1 440.7,233.1 450.5,236.8 460.2,246.7 470.0,247.6 499.3,256.6 509.0,256.6 518.8,253.9 528.6,253.9 538.3,249.0 548.1,253.5 557.9,252.1 567.6,255.3 577.4,252.6 587.1,254.8 596.9,243.5 606.7,212.8 616.4,234.5 626.2,253.0 645.7,239.0 655.5,213.7 665.2,240.4 675.0,246.7 684.8,255.7 694.5,255.3 714.0,256.2 723.8,235.4 733.6,220.9 743.3,236.3 753.1,229.5 762.9,236.3 772.6,233.6 782.4,234.5 792.1,239.5 801.9,239.5 811.7,239.0 821.4,244.4 831.2,246.2 841.0,230.4 850.7,233.6 860.5,233.6 870.2,246.2 880.0,253.5"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="1.6" points="60.0,240.8 69.8,249.0 79.5,249.4 89.3,255.3 99.0,255.7 108.8,255.3 118.6,249.0 128.3,249.4 138.1,231.3 147.9,225.5 157.6,224.1 167.4,234.9 177.1,238.1 186.9,252.6 196.7,245.8 206.4,233.1 216.2,233.6 226.0,256.6 235.7,250.3 245.5,252.6 255.2,252.6 265.0,236.3 274.8,222.3 284.5,233.1 294.3,238.6 304.0,245.8 313.8,237.2 323.6,250.8 333.3,251.2 343.1,253.0 352.9,252.6 362.6,250.8 372.4,253.0 382.1,244.0 391.9,243.5 401.7,252.6 411.4,233.6 431.0,235.4 440.7,235.4 450.5,240.4 460.2,249.0 470.0,253.9 499.3,257.5 509.0,251.2 518.8,247.2 528.6,246.7 538.3,251.2 557.9,257.5 567.6,253.0 577.4,253.9 587.1,251.2 596.9,244.4 606.7,225.5 616.4,243.5 626.2,244.0 636.0,254.4 645.7,236.8 655.5,234.5 665.2,243.1 675.0,257.5 684.8,244.4 694.5,249.9 704.3,253.0 714.0,257.1 723.8,234.5 733.6,230.0 743.3,239.0 753.1,234.9 762.9,243.5 772.6,229.1 782.4,235.9 792.1,236.3 801.9,227.3 811.7,228.2 821.4,238.6 831.2,230.4 841.0,228.6 850.7,243.5 860.5,240.4 870.2,249.4 880.0,249.9"/>
+<polyline fill="none" stroke="#9467bd" stroke-width="1.6" points="60.0,217.8 69.8,237.7 79.5,243.5 89.3,250.3 99.0,253.5 118.6,252.6 128.3,249.0 138.1,241.7 147.9,230.9 157.6,242.2 167.4,233.1 177.1,227.3 186.9,245.3 196.7,245.3 206.4,233.6 216.2,232.7 235.7,257.5 245.5,256.2 255.2,254.4 265.0,236.3 274.8,216.0 284.5,239.9 294.3,232.7 304.0,233.1 313.8,247.2 323.6,249.9 333.3,247.2 362.6,252.1 382.1,245.8 391.9,231.3 401.7,247.2 411.4,228.6 421.2,257.1 431.0,237.2 440.7,224.1 450.5,226.8 460.2,244.4 470.0,253.9 509.0,257.1 518.8,252.6 528.6,254.4 538.3,249.4 548.1,250.8 557.9,254.4 567.6,256.2 587.1,256.2 596.9,248.5 606.7,223.2 616.4,239.5 626.2,249.0 636.0,257.1 645.7,247.6 655.5,223.6 665.2,234.5 675.0,255.3 684.8,244.0 694.5,253.0 704.3,257.1 723.8,246.2 733.6,237.7 743.3,227.3 753.1,226.4 762.9,244.9 772.6,232.2 782.4,245.3 792.1,244.0 801.9,239.0 811.7,231.8 821.4,242.2 831.2,242.2 841.0,237.7 850.7,232.7 860.5,243.1 870.2,246.7 880.0,252.6"/>
+<rect x="660" y="38" width="14" height="3" fill="#d62728"/>
+<text x="678" y="43" font-size="10">8347543b</text>
+<rect x="660" y="50" width="14" height="3" fill="#1f77b4"/>
+<text x="678" y="55" font-size="10">7b653584</text>
+<rect x="660" y="62" width="14" height="3" fill="#2ca02c"/>
+<text x="678" y="67" font-size="10">65681556</text>
+<rect x="660" y="74" width="14" height="3" fill="#ff7f0e"/>
+<text x="678" y="79" font-size="10">b01479cc</text>
+<rect x="660" y="86" width="14" height="3" fill="#9467bd"/>
+<text x="678" y="91" font-size="10">53f8418c</text>
+</svg></div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" width="900" height="300">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:12px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="18">cvmps-win-bl: cumulative distinct nodes touched (top-5)</text>
+<line class="grid" x1="60" y1="258.0" x2="880" y2="258.0"/>
+<text class="tick" x="54" y="261.0" text-anchor="end">0</text>
+<line class="grid" x1="60" y1="212.8" x2="880" y2="212.8"/>
+<text class="tick" x="54" y="215.8" text-anchor="end">20</text>
+<line class="grid" x1="60" y1="167.6" x2="880" y2="167.6"/>
+<text class="tick" x="54" y="170.6" text-anchor="end">40</text>
+<line class="grid" x1="60" y1="122.4" x2="880" y2="122.4"/>
+<text class="tick" x="54" y="125.4" text-anchor="end">60</text>
+<line class="grid" x1="60" y1="77.2" x2="880" y2="77.2"/>
+<text class="tick" x="54" y="80.2" text-anchor="end">80</text>
+<line class="grid" x1="60" y1="32.0" x2="880" y2="32.0"/>
+<text class="tick" x="54" y="35.0" text-anchor="end">100</text>
+<line class="grid" x1="60.0" y1="32" x2="60.0" y2="258"/>
+<text class="tick" x="60.0" y="270" text-anchor="middle">08-13</text>
+<line class="grid" x1="196.7" y1="32" x2="196.7" y2="258"/>
+<text class="tick" x="196.7" y="270" text-anchor="middle">08-14</text>
+<line class="grid" x1="333.3" y1="32" x2="333.3" y2="258"/>
+<text class="tick" x="333.3" y="270" text-anchor="middle">08-16</text>
+<line class="grid" x1="470.0" y1="32" x2="470.0" y2="258"/>
+<text class="tick" x="470.0" y="270" text-anchor="middle">08-17</text>
+<line class="grid" x1="606.7" y1="32" x2="606.7" y2="258"/>
+<text class="tick" x="606.7" y="270" text-anchor="middle">08-18</text>
+<line class="grid" x1="743.3" y1="32" x2="743.3" y2="258"/>
+<text class="tick" x="743.3" y="270" text-anchor="middle">08-19</text>
+<line class="grid" x1="880.0" y1="32" x2="880.0" y2="258"/>
+<text class="tick" x="880.0" y="270" text-anchor="middle">08-20</text>
+<line class="axis" x1="60" y1="258" x2="880" y2="258"/>
+<line class="axis" x1="60" y1="32" x2="60" y2="258"/>
+<text x="470" y="294" text-anchor="middle">time (UTC)</text>
+<text x="14" y="145" transform="rotate(-90 14 145)" text-anchor="middle">distinct nodes</text>
+<polyline fill="none" stroke="#d62728" stroke-width="1.6" points="79.5,206.0 89.3,77.2 99.0,77.2 108.8,77.2 118.6,77.2 128.3,77.2 138.1,77.2 147.9,77.2 157.6,77.2 167.4,77.2 177.1,77.2 186.9,77.2 196.7,77.2 206.4,77.2 216.2,77.2 226.0,77.2 235.7,77.2 245.5,77.2 255.2,77.2 265.0,77.2 274.8,77.2 284.5,77.2 304.0,77.2 313.8,77.2 323.6,77.2 333.3,77.2 372.4,77.2 382.1,77.2 391.9,77.2 401.7,77.2 411.4,77.2 421.2,77.2 431.0,77.2 440.7,77.2 450.5,77.2 489.5,77.2 499.3,77.2 509.0,77.2 528.6,77.2 538.3,77.2 548.1,77.2 557.9,77.2 567.6,77.2 577.4,77.2 587.1,77.2 596.9,77.2 606.7,77.2 645.7,77.2 704.3,77.2 714.0,77.2 723.8,77.2 733.6,77.2 743.3,77.2 753.1,77.2 762.9,77.2 772.6,77.2 782.4,77.2 792.1,77.2 801.9,77.2 811.7,77.2 831.2,77.2 841.0,77.2 850.7,77.2 860.5,77.2 870.2,77.2 880.0,77.2"/>
+<polyline fill="none" stroke="#1f77b4" stroke-width="1.6" points="60.0,253.5 69.8,251.2 79.5,237.7 89.3,237.7 99.0,237.7 108.8,237.7 118.6,77.2 147.9,77.2 157.6,77.2 167.4,77.2 177.1,77.2 186.9,77.2 196.7,77.2 206.4,77.2 255.2,77.2 265.0,77.2 274.8,77.2 284.5,77.2 294.3,77.2 304.0,77.2 313.8,77.2 323.6,77.2 333.3,77.2 362.6,77.2 372.4,77.2 382.1,77.2 391.9,77.2 401.7,77.2 411.4,77.2 421.2,77.2 431.0,77.2 440.7,77.2 450.5,77.2 460.2,77.2 470.0,77.2 479.8,77.2 489.5,77.2 499.3,77.2 509.0,77.2 518.8,77.2 528.6,77.2 538.3,77.2 548.1,77.2 557.9,77.2 567.6,77.2 577.4,77.2 587.1,77.2 596.9,77.2 606.7,77.2 616.4,77.2 626.2,77.2 636.0,77.2 645.7,77.2 655.5,77.2 665.2,77.2 675.0,77.2 684.8,77.2 694.5,77.2 704.3,77.2 714.0,77.2 723.8,77.2 733.6,77.2 743.3,77.2 753.1,77.2 762.9,77.2 772.6,77.2 782.4,77.2 792.1,77.2 801.9,77.2 811.7,77.2 821.4,77.2 831.2,77.2 850.7,77.2 860.5,77.2 870.2,77.2 880.0,77.2"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="1.6" points="69.8,160.8 79.5,160.8 89.3,160.8 99.0,160.8 108.8,160.8 118.6,160.8 128.3,160.8 138.1,160.8 147.9,160.8 157.6,140.5 167.4,136.0 177.1,136.0 186.9,136.0 196.7,136.0 206.4,136.0 216.2,136.0 226.0,136.0 235.7,136.0 245.5,136.0 255.2,136.0 265.0,136.0 274.8,133.7 284.5,122.4 294.3,122.4 304.0,122.4 313.8,122.4 323.6,122.4 333.3,122.4 343.1,122.4 352.9,122.4 362.6,122.4 372.4,122.4 382.1,122.4 391.9,122.4 401.7,122.4 411.4,122.4 421.2,122.4 431.0,122.4 440.7,122.4 450.5,122.4 460.2,122.4 470.0,122.4 499.3,122.4 509.0,122.4 518.8,122.4 528.6,122.4 538.3,122.4 548.1,122.4 557.9,122.4 567.6,122.4 577.4,122.4 587.1,122.4 596.9,122.4 606.7,120.1 616.4,120.1 626.2,120.1 645.7,120.1 655.5,120.1 665.2,120.1 675.0,120.1 684.8,120.1 694.5,120.1 714.0,120.1 723.8,120.1 733.6,120.1 743.3,120.1 753.1,120.1 762.9,120.1 772.6,120.1 782.4,120.1 792.1,120.1 801.9,120.1 811.7,120.1 821.4,120.1 831.2,120.1 841.0,120.1 850.7,120.1 860.5,120.1 870.2,120.1 880.0,120.1"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="1.6" points="60.0,190.2 69.8,190.2 79.5,190.2 89.3,190.2 99.0,190.2 108.8,190.2 118.6,190.2 128.3,190.2 138.1,158.6 147.9,147.3 157.6,145.0 167.4,145.0 177.1,145.0 186.9,145.0 196.7,145.0 206.4,145.0 216.2,145.0 226.0,145.0 235.7,145.0 245.5,145.0 255.2,145.0 265.0,145.0 274.8,136.0 284.5,136.0 294.3,136.0 304.0,136.0 313.8,136.0 323.6,136.0 333.3,136.0 343.1,136.0 352.9,136.0 362.6,136.0 372.4,136.0 382.1,136.0 391.9,136.0 401.7,136.0 411.4,136.0 431.0,136.0 440.7,136.0 450.5,136.0 460.2,136.0 470.0,136.0 499.3,136.0 509.0,136.0 518.8,136.0 528.6,136.0 538.3,136.0 557.9,136.0 567.6,136.0 577.4,136.0 587.1,136.0 596.9,136.0 606.7,136.0 616.4,136.0 626.2,136.0 636.0,136.0 645.7,136.0 655.5,136.0 665.2,136.0 675.0,136.0 684.8,136.0 694.5,136.0 704.3,136.0 714.0,136.0 723.8,136.0 733.6,136.0 743.3,136.0 753.1,136.0 762.9,136.0 772.6,136.0 782.4,136.0 792.1,136.0 801.9,136.0 811.7,136.0 821.4,136.0 831.2,136.0 841.0,136.0 850.7,136.0 860.5,136.0 870.2,136.0 880.0,136.0"/>
+<polyline fill="none" stroke="#9467bd" stroke-width="1.6" points="60.0,124.7 69.8,124.7 79.5,124.7 89.3,124.7 99.0,124.7 118.6,124.7 128.3,124.7 138.1,124.7 147.9,124.7 157.6,124.7 167.4,124.7 177.1,124.7 186.9,124.7 196.7,124.7 206.4,124.7 216.2,124.7 235.7,124.7 245.5,124.7 255.2,124.7 265.0,124.7 274.8,124.7 284.5,124.7 294.3,124.7 304.0,124.7 313.8,124.7 323.6,124.7 333.3,124.7 362.6,124.7 382.1,124.7 391.9,124.7 401.7,124.7 411.4,124.7 421.2,124.7 431.0,124.7 440.7,124.7 450.5,124.7 460.2,124.7 470.0,124.7 509.0,124.7 518.8,124.7 528.6,124.7 538.3,124.7 548.1,124.7 557.9,124.7 567.6,124.7 587.1,124.7 596.9,124.7 606.7,124.7 616.4,124.7 626.2,124.7 636.0,124.7 645.7,124.7 655.5,124.7 665.2,124.7 675.0,124.7 684.8,124.7 694.5,124.7 704.3,124.7 723.8,124.7 733.6,124.7 743.3,124.7 753.1,124.7 762.9,124.7 772.6,124.7 782.4,124.7 792.1,124.7 801.9,124.7 811.7,124.7 821.4,124.7 831.2,124.7 841.0,124.7 850.7,124.7 860.5,124.7 870.2,124.7 880.0,124.7"/>
+<line class="tgt" x1="60" y1="77.2" x2="880" y2="77.2"/>
+<text class="tick" x="66" y="74.2" fill="#666">fleet size = 80</text>
+<rect x="660" y="38" width="14" height="3" fill="#d62728"/>
+<text x="678" y="43" font-size="10">8347543b</text>
+<rect x="660" y="50" width="14" height="3" fill="#1f77b4"/>
+<text x="678" y="55" font-size="10">7b653584</text>
+<rect x="660" y="62" width="14" height="3" fill="#2ca02c"/>
+<text x="678" y="67" font-size="10">65681556</text>
+<rect x="660" y="74" width="14" height="3" fill="#ff7f0e"/>
+<text x="678" y="79" font-size="10">b01479cc</text>
+<rect x="660" y="86" width="14" height="3" fill="#9467bd"/>
+<text x="678" y="91" font-size="10">53f8418c</text>
+</svg></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" width="900" height="360">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:12px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="18">cvmps-win-bl: fleet footprint (nodes touched / fleet size, top 15)</text>
+<line class="tgt" x1="840.0" y1="32" x2="840.0" y2="334"/>
+<text class="tick" x="840.0" y="28" text-anchor="middle" fill="#666">fleet=80</text>
+<line class="axis" x1="190" y1="32" x2="190" y2="334"/>
+<line class="axis" x1="190" y1="334" x2="840" y2="334"/>
+<rect x="190" y="34.0" width="650.0" height="16.1" fill="#d62728" fill-opacity="0.75"/>
+<text x="184" y="49.1" text-anchor="end" font-size="10">cvms_26_08_11w2025</text>
+<text x="844.0" y="49.1" font-size="10">80/80</text>
+<rect x="190" y="54.1" width="650.0" height="16.1" fill="#1f77b4" fill-opacity="0.75"/>
+<text x="184" y="69.3" text-anchor="end" font-size="10">cvms_26_07_11w2025</text>
+<text x="844.0" y="69.3" font-size="10">80/80</text>
+<rect x="190" y="74.3" width="650.0" height="16.1" fill="#2ca02c" fill-opacity="0.75"/>
+<text x="184" y="89.4" text-anchor="end" font-size="10">2025-datacenter-azure-edit</text>
+<text x="844.0" y="89.4" font-size="10">80/80</text>
+<rect x="190" y="94.4" width="650.0" height="16.1" fill="#ff7f0e" fill-opacity="0.75"/>
+<text x="184" y="109.5" text-anchor="end" font-size="10">2022-datacenter-smalldisk-</text>
+<text x="844.0" y="109.5" font-size="10">80/80</text>
+<rect x="190" y="114.5" width="650.0" height="16.1" fill="#9467bd" fill-opacity="0.75"/>
+<text x="184" y="129.7" text-anchor="end" font-size="10">2025-datacenter-smalldisk-</text>
+<text x="844.0" y="129.7" font-size="10">80/80</text>
+<rect x="190" y="134.7" width="650.0" height="16.1" fill="#8c564b" fill-opacity="0.75"/>
+<text x="184" y="149.8" text-anchor="end" font-size="10">cvms_26_08_11w2025_exo</text>
+<text x="844.0" y="149.8" font-size="10">80/80</text>
+<rect x="190" y="154.8" width="650.0" height="16.1" fill="#e377c2" fill-opacity="0.75"/>
+<text x="184" y="169.9" text-anchor="end" font-size="10">cvms_26_07_11w2025_exo</text>
+<text x="844.0" y="169.9" font-size="10">80/80</text>
+<rect x="190" y="174.9" width="650.0" height="16.1" fill="#17becf" fill-opacity="0.75"/>
+<text x="184" y="190.1" text-anchor="end" font-size="10">PIR</text>
+<text x="844.0" y="190.1" font-size="10">80/80</text>
+<rect x="190" y="195.1" width="650.0" height="16.1" fill="#bcbd22" fill-opacity="0.75"/>
+<text x="184" y="210.2" text-anchor="end" font-size="10">windows-cvm-ws2025-smalldi</text>
+<text x="844.0" y="210.2" font-size="10">80/80</text>
+<rect x="190" y="215.2" width="650.0" height="16.1" fill="#7f7f7f" fill-opacity="0.75"/>
+<text x="184" y="230.3" text-anchor="end" font-size="10">cvms_26_06_13w2025</text>
+<text x="844.0" y="230.3" font-size="10">80/80</text>
+<rect x="190" y="235.3" width="650.0" height="16.1" fill="#d62728" fill-opacity="0.75"/>
+<text x="184" y="250.5" text-anchor="end" font-size="10">windows-cvm-ws2022-wpa</text>
+<text x="844.0" y="250.5" font-size="10">80/80</text>
+<rect x="190" y="255.5" width="650.0" height="16.1" fill="#1f77b4" fill-opacity="0.75"/>
+<text x="184" y="270.6" text-anchor="end" font-size="10">id_2025core1p_stage3_v2_cv</text>
+<text x="844.0" y="270.6" font-size="10">80/80</text>
+<rect x="190" y="275.6" width="650.0" height="16.1" fill="#2ca02c" fill-opacity="0.75"/>
+<text x="184" y="290.7" text-anchor="end" font-size="10">vcme-gen-ci-apr08</text>
+<text x="844.0" y="290.7" font-size="10">80/80</text>
+<rect x="190" y="295.7" width="650.0" height="16.1" fill="#ff7f0e" fill-opacity="0.75"/>
+<text x="184" y="310.9" text-anchor="end" font-size="10">2019-datacenter-smalldisk-</text>
+<text x="844.0" y="310.9" font-size="10">80/80</text>
+<rect x="190" y="315.9" width="650.0" height="16.1" fill="#9467bd" fill-opacity="0.75"/>
+<text x="184" y="331.0" text-anchor="end" font-size="10">2025-datacenter-azure-edit</text>
+<text x="844.0" y="331.0" font-size="10">80/80</text>
+</svg></div>
+<h2>cvmps-win-am &mdash; fleet 60 nodes</h2>
+<p class="caption">7-day window &middot; 26,569 total requests across 20 distinct images (>=30 reqs each) &middot;
+<b class="warn">25,676 wasted encryptions</b> at ideal=2 (96.6%) &middot;
+15 images spread &ge;90% of fleet &middot; 98.9% of requests came from full-fleet-spread images.</p>
+<table class="summary">
+    <tr><th>#</th><th>source</th><th>name</th><th>image id</th><th>reqs (7d)</th><th>nodes</th><th>spread</th><th>req/h</th><th>active h</th><th>wasted @ ideal=2</th><th>waste %</th></tr>
+    <tr>
+    <td>1</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_08_11w2025</td>
+    <td><code>8347543b</code></td>
+    <td>3,700</td>
+    <td>60/60</td>
+    <td class="warn">100.0%</td>
+    <td>22.66</td>
+    <td>163</td>
+    <td class="warn">3,577</td>
+    <td>96.7%</td>
+  </tr><tr>
+    <td>2</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2022-datacenter-smalldisk-g2</td>
+    <td><code>b01479cc</code></td>
+    <td>3,295</td>
+    <td>60/60</td>
+    <td class="warn">100.0%</td>
+    <td>19.84</td>
+    <td>166</td>
+    <td class="warn">3,185</td>
+    <td>96.7%</td>
+  </tr><tr>
+    <td>3</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2025-datacenter-azure-edition</td>
+    <td><code>65681556</code></td>
+    <td>2,686</td>
+    <td>60/60</td>
+    <td class="warn">100.0%</td>
+    <td>16.23</td>
+    <td>166</td>
+    <td class="warn">2,596</td>
+    <td>96.6%</td>
+  </tr><tr>
+    <td>4</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2025-datacenter-smalldisk-g2</td>
+    <td><code>53f8418c</code></td>
+    <td>2,635</td>
+    <td>60/60</td>
+    <td class="warn">100.0%</td>
+    <td>15.83</td>
+    <td>167</td>
+    <td class="warn">2,547</td>
+    <td>96.7%</td>
+  </tr><tr>
+    <td>5</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_07_11w2025_exo</td>
+    <td><code>c6faa9bc</code></td>
+    <td>2,473</td>
+    <td>60/60</td>
+    <td class="warn">100.0%</td>
+    <td>15.45</td>
+    <td>160</td>
+    <td class="warn">2,391</td>
+    <td>96.7%</td>
+  </tr><tr>
+    <td>6</td>
+    <td class="topo">PIR</td>
+    <td class="topo"></td>
+    <td><code>8de556ce</code></td>
+    <td>2,346</td>
+    <td>60/60</td>
+    <td class="warn">100.0%</td>
+    <td>14.01</td>
+    <td>168</td>
+    <td class="warn">2,268</td>
+    <td>96.7%</td>
+  </tr><tr>
+    <td>7</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2025-datacenter-g2</td>
+    <td><code>84d34b78</code></td>
+    <td>2,162</td>
+    <td>60/60</td>
+    <td class="warn">100.0%</td>
+    <td>13.18</td>
+    <td>164</td>
+    <td class="warn">2,090</td>
+    <td>96.7%</td>
+  </tr><tr>
+    <td>8</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_07_11w2025</td>
+    <td><code>7b653584</code></td>
+    <td>2,014</td>
+    <td>60/60</td>
+    <td class="warn">100.0%</td>
+    <td>13.36</td>
+    <td>151</td>
+    <td class="warn">1,947</td>
+    <td>96.7%</td>
+  </tr><tr>
+    <td>9</td>
+    <td class="topo">PIR</td>
+    <td class="topo">2025-datacenter-azure-edition-smalldisk</td>
+    <td><code>68ae7e02</code></td>
+    <td>1,858</td>
+    <td>60/60</td>
+    <td class="warn">100.0%</td>
+    <td>11.32</td>
+    <td>164</td>
+    <td class="warn">1,796</td>
+    <td>96.7%</td>
+  </tr><tr>
+    <td>10</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_08_11w2025_exo</td>
+    <td><code>15bcde25</code></td>
+    <td>1,429</td>
+    <td>60/60</td>
+    <td class="warn">100.0%</td>
+    <td>13.52</td>
+    <td>106</td>
+    <td class="warn">1,381</td>
+    <td>96.6%</td>
+  </tr><tr>
+    <td>11</td>
+    <td class="topo">EAP</td>
+    <td class="topo">cvms_26_07_11w2022_exo</td>
+    <td><code>208eac34</code></td>
+    <td>657</td>
+    <td>60/60</td>
+    <td class="warn">100.0%</td>
+    <td>5.96</td>
+    <td>110</td>
+    <td class="warn">635</td>
+    <td>96.7%</td>
+  </tr><tr>
+    <td>12</td>
+    <td class="topo">OneP</td>
+    <td class="topo">2022-datacenter-azure-edition-smalldisk-</td>
+    <td><code>e14f2d9f</code></td>
+    <td>353</td>
+    <td>60/60</td>
+    <td class="warn">100.0%</td>
+    <td>2.84</td>
+    <td>124</td>
+    <td class="warn">341</td>
+    <td>96.6%</td>
+  </tr>
+    <tr><td colspan="4"><b>Region totals (all images >=30 reqs)</b></td>
+        <td><b>26,569</b></td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
+        <td class="warn"><b>25,676</b></td><td class="warn"><b>96.6%</b></td></tr>
+  </table>
+<div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" width="900" height="300">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:12px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="18">cvmps-win-am: requests per 2h window (top-5 images by 7d reqs)</text>
+<line class="grid" x1="60" y1="258.0" x2="880" y2="258.0"/>
+<text class="tick" x="54" y="261.0" text-anchor="end">0</text>
+<line class="grid" x1="60" y1="212.8" x2="880" y2="212.8"/>
+<text class="tick" x="54" y="215.8" text-anchor="end">100</text>
+<line class="grid" x1="60" y1="167.6" x2="880" y2="167.6"/>
+<text class="tick" x="54" y="170.6" text-anchor="end">200</text>
+<line class="grid" x1="60" y1="122.4" x2="880" y2="122.4"/>
+<text class="tick" x="54" y="125.4" text-anchor="end">300</text>
+<line class="grid" x1="60" y1="77.2" x2="880" y2="77.2"/>
+<text class="tick" x="54" y="80.2" text-anchor="end">400</text>
+<line class="grid" x1="60" y1="32.0" x2="880" y2="32.0"/>
+<text class="tick" x="54" y="35.0" text-anchor="end">500</text>
+<line class="grid" x1="60.0" y1="32" x2="60.0" y2="258"/>
+<text class="tick" x="60.0" y="270" text-anchor="middle">08-13</text>
+<line class="grid" x1="196.7" y1="32" x2="196.7" y2="258"/>
+<text class="tick" x="196.7" y="270" text-anchor="middle">08-14</text>
+<line class="grid" x1="333.3" y1="32" x2="333.3" y2="258"/>
+<text class="tick" x="333.3" y="270" text-anchor="middle">08-16</text>
+<line class="grid" x1="470.0" y1="32" x2="470.0" y2="258"/>
+<text class="tick" x="470.0" y="270" text-anchor="middle">08-17</text>
+<line class="grid" x1="606.7" y1="32" x2="606.7" y2="258"/>
+<text class="tick" x="606.7" y="270" text-anchor="middle">08-18</text>
+<line class="grid" x1="743.3" y1="32" x2="743.3" y2="258"/>
+<text class="tick" x="743.3" y="270" text-anchor="middle">08-19</text>
+<line class="grid" x1="880.0" y1="32" x2="880.0" y2="258"/>
+<text class="tick" x="880.0" y="270" text-anchor="middle">08-20</text>
+<line class="axis" x1="60" y1="258" x2="880" y2="258"/>
+<line class="axis" x1="60" y1="32" x2="60" y2="258"/>
+<text x="470" y="294" text-anchor="middle">time (UTC)</text>
+<text x="14" y="145" transform="rotate(-90 14 145)" text-anchor="middle">requests / 2h</text>
+<polyline fill="none" stroke="#d62728" stroke-width="1.6" points="79.5,239.5 89.3,249.0 99.0,242.2 108.8,246.7 118.6,252.6 147.9,252.1 186.9,246.2 196.7,184.8 206.4,252.1 245.5,233.1 255.2,234.9 265.0,248.5 333.3,243.1 343.1,253.0 352.9,246.7 362.6,240.4 372.4,173.5 382.1,223.6 391.9,230.0 401.7,251.7 411.4,219.6 421.2,215.5 431.0,235.9 440.7,253.5 450.5,220.0 460.2,256.6 479.8,201.0 489.5,228.2 499.3,233.6 509.0,249.4 518.8,230.0 528.6,238.1 538.3,217.8 548.1,239.9 557.9,228.2 567.6,225.5 577.4,239.0 587.1,253.9 596.9,222.7 606.7,241.7 616.4,255.7 626.2,226.8 636.0,240.4 645.7,241.7 655.5,247.6 665.2,230.4 675.0,216.4 684.8,220.5 704.3,238.6 714.0,247.6 723.8,256.6 733.6,251.7 753.1,249.4 762.9,230.9 772.6,230.9 782.4,154.0 792.1,202.0 801.9,208.3 811.7,220.5 821.4,239.5 831.2,219.1 841.0,217.3 850.7,228.6 860.5,216.4 870.2,231.8 880.0,239.0"/>
+<polyline fill="none" stroke="#1f77b4" stroke-width="1.6" points="60.0,253.9 69.8,251.2 79.5,249.0 89.3,255.3 99.0,250.3 108.8,247.2 118.6,245.3 128.3,230.4 138.1,245.8 147.9,253.0 157.6,249.9 167.4,250.8 177.1,250.3 186.9,250.8 196.7,247.2 206.4,245.3 216.2,253.0 226.0,251.7 235.7,249.9 245.5,246.2 255.2,237.7 265.0,220.5 274.8,237.7 284.5,248.5 294.3,251.2 304.0,248.1 313.8,251.7 323.6,246.2 333.3,248.5 343.1,248.5 352.9,248.5 362.6,248.5 372.4,254.4 382.1,231.8 391.9,230.4 401.7,231.8 411.4,236.8 421.2,237.7 431.0,223.2 440.7,221.4 450.5,231.8 460.2,226.8 470.0,233.6 479.8,226.8 489.5,243.5 499.3,239.0 509.0,231.8 518.8,240.8 528.6,223.2 538.3,232.7 548.1,220.9 557.9,236.3 567.6,238.1 577.4,228.6 587.1,235.9 596.9,228.6 606.7,230.4 616.4,235.9 626.2,226.4 636.0,230.4 645.7,236.3 655.5,225.0 665.2,238.1 675.0,224.1 684.8,236.3 694.5,217.8 704.3,225.0 714.0,237.2 723.8,249.9 733.6,250.3 743.3,244.9 753.1,246.7 762.9,246.2 772.6,240.4 782.4,244.9 792.1,230.9 801.9,253.5 811.7,244.4 821.4,246.7 831.2,248.5 841.0,238.1 850.7,241.3 860.5,250.3 870.2,244.9"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="1.6" points="69.8,249.0 79.5,253.0 89.3,253.9 99.0,255.7 108.8,255.7 118.6,246.2 128.3,233.6 138.1,251.7 147.9,256.6 157.6,255.3 167.4,251.7 177.1,251.2 186.9,255.7 196.7,253.9 206.4,246.7 216.2,253.5 226.0,253.0 235.7,254.8 245.5,249.9 255.2,230.4 265.0,230.4 274.8,243.1 284.5,247.2 294.3,253.0 304.0,254.4 313.8,255.3 323.6,251.7 333.3,252.1 343.1,256.6 352.9,249.9 362.6,254.4 372.4,256.6 382.1,230.0 391.9,242.6 401.7,237.7 411.4,234.9 421.2,240.8 431.0,226.4 440.7,226.4 450.5,239.0 460.2,237.7 470.0,229.1 479.8,235.4 489.5,244.0 499.3,237.7 509.0,225.0 518.8,240.4 528.6,221.8 538.3,242.2 548.1,232.2 557.9,230.4 567.6,240.4 577.4,229.5 587.1,235.4 596.9,232.2 606.7,234.5 616.4,239.9 626.2,230.4 636.0,235.4 645.7,222.3 655.5,229.1 665.2,244.0 675.0,234.9 684.8,233.6 694.5,230.4 704.3,233.1 714.0,232.2 723.8,251.7 733.6,252.6 743.3,253.9 753.1,247.2 762.9,247.2 772.6,250.3 782.4,247.6 792.1,241.7 801.9,248.5 811.7,249.9 821.4,249.4 831.2,253.0 841.0,243.1 850.7,254.4 860.5,252.6 870.2,249.4"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="1.6" points="60.0,257.5 69.8,254.8 79.5,252.6 99.0,255.7 108.8,257.5 118.6,244.9 128.3,238.6 138.1,253.9 147.9,257.5 157.6,255.7 167.4,253.5 177.1,256.6 186.9,255.7 196.7,251.7 206.4,248.1 226.0,256.6 235.7,253.0 245.5,251.2 255.2,229.1 265.0,229.5 274.8,230.4 284.5,254.8 294.3,253.9 304.0,250.8 313.8,254.4 323.6,253.9 333.3,249.9 343.1,255.3 352.9,250.3 372.4,255.7 382.1,228.6 391.9,229.1 401.7,234.5 411.4,236.3 421.2,243.5 431.0,236.8 440.7,228.6 450.5,232.2 460.2,237.7 470.0,240.4 479.8,230.9 489.5,239.9 499.3,229.1 509.0,234.0 518.8,231.8 528.6,238.1 538.3,236.3 548.1,224.6 557.9,229.1 567.6,243.1 577.4,241.3 587.1,241.7 596.9,238.1 606.7,232.7 616.4,239.5 626.2,231.3 636.0,231.8 645.7,236.8 655.5,233.1 665.2,227.7 675.0,233.6 684.8,227.7 694.5,232.2 704.3,231.3 714.0,239.9 723.8,242.6 733.6,253.9 743.3,247.2 753.1,252.6 762.9,253.0 772.6,244.9 782.4,244.9 792.1,237.7 801.9,253.0 811.7,250.3 821.4,240.8 831.2,257.1 841.0,242.2 850.7,246.2 870.2,255.7"/>
+<polyline fill="none" stroke="#9467bd" stroke-width="1.6" points="89.3,236.3 99.0,218.2 118.6,244.9 128.3,216.0 138.1,244.0 147.9,245.8 157.6,247.2 167.4,248.5 177.1,246.7 186.9,247.2 196.7,247.6 206.4,246.2 216.2,245.3 226.0,245.8 235.7,245.8 245.5,248.1 255.2,238.6 265.0,240.4 274.8,241.7 284.5,246.2 294.3,247.6 304.0,248.5 313.8,248.5 323.6,247.2 333.3,246.7 343.1,250.3 352.9,250.3 362.6,250.3 372.4,250.3 382.1,240.8 391.9,237.2 401.7,239.0 411.4,234.5 421.2,252.6 431.0,230.9 440.7,242.2 450.5,254.4 460.2,234.5 470.0,221.8 479.8,243.5 489.5,247.2 499.3,245.3 509.0,243.1 518.8,248.1 528.6,239.0 538.3,242.2 548.1,244.9 557.9,251.2 567.6,257.1 577.4,217.8 587.1,215.1 596.9,250.3 606.7,257.1 616.4,215.5 626.2,244.0 636.0,239.9 645.7,234.5 655.5,238.1 665.2,248.5 675.0,239.9 684.8,242.2 694.5,236.3 704.3,242.6 714.0,248.1 723.8,254.8 733.6,257.5 743.3,246.2 753.1,244.0 762.9,251.2 772.6,247.6 782.4,250.8 792.1,253.9 811.7,242.2 821.4,254.8 831.2,256.6 841.0,244.9 850.7,254.4 870.2,247.6"/>
+<rect x="660" y="38" width="14" height="3" fill="#d62728"/>
+<text x="678" y="43" font-size="10">8347543b</text>
+<rect x="660" y="50" width="14" height="3" fill="#1f77b4"/>
+<text x="678" y="55" font-size="10">b01479cc</text>
+<rect x="660" y="62" width="14" height="3" fill="#2ca02c"/>
+<text x="678" y="67" font-size="10">65681556</text>
+<rect x="660" y="74" width="14" height="3" fill="#ff7f0e"/>
+<text x="678" y="79" font-size="10">53f8418c</text>
+<rect x="660" y="86" width="14" height="3" fill="#9467bd"/>
+<text x="678" y="91" font-size="10">c6faa9bc</text>
+</svg></div><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" width="900" height="300">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:12px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="18">cvmps-win-am: cumulative distinct nodes touched (top-5)</text>
+<line class="grid" x1="60" y1="258.0" x2="880" y2="258.0"/>
+<text class="tick" x="54" y="261.0" text-anchor="end">0</text>
+<line class="grid" x1="60" y1="212.8" x2="880" y2="212.8"/>
+<text class="tick" x="54" y="215.8" text-anchor="end">20</text>
+<line class="grid" x1="60" y1="167.6" x2="880" y2="167.6"/>
+<text class="tick" x="54" y="170.6" text-anchor="end">40</text>
+<line class="grid" x1="60" y1="122.4" x2="880" y2="122.4"/>
+<text class="tick" x="54" y="125.4" text-anchor="end">60</text>
+<line class="grid" x1="60" y1="77.2" x2="880" y2="77.2"/>
+<text class="tick" x="54" y="80.2" text-anchor="end">80</text>
+<line class="grid" x1="60" y1="32.0" x2="880" y2="32.0"/>
+<text class="tick" x="54" y="35.0" text-anchor="end">100</text>
+<line class="grid" x1="60.0" y1="32" x2="60.0" y2="258"/>
+<text class="tick" x="60.0" y="270" text-anchor="middle">08-13</text>
+<line class="grid" x1="196.7" y1="32" x2="196.7" y2="258"/>
+<text class="tick" x="196.7" y="270" text-anchor="middle">08-14</text>
+<line class="grid" x1="333.3" y1="32" x2="333.3" y2="258"/>
+<text class="tick" x="333.3" y="270" text-anchor="middle">08-16</text>
+<line class="grid" x1="470.0" y1="32" x2="470.0" y2="258"/>
+<text class="tick" x="470.0" y="270" text-anchor="middle">08-17</text>
+<line class="grid" x1="606.7" y1="32" x2="606.7" y2="258"/>
+<text class="tick" x="606.7" y="270" text-anchor="middle">08-18</text>
+<line class="grid" x1="743.3" y1="32" x2="743.3" y2="258"/>
+<text class="tick" x="743.3" y="270" text-anchor="middle">08-19</text>
+<line class="grid" x1="880.0" y1="32" x2="880.0" y2="258"/>
+<text class="tick" x="880.0" y="270" text-anchor="middle">08-20</text>
+<line class="axis" x1="60" y1="258" x2="880" y2="258"/>
+<line class="axis" x1="60" y1="32" x2="60" y2="258"/>
+<text x="470" y="294" text-anchor="middle">time (UTC)</text>
+<text x="14" y="145" transform="rotate(-90 14 145)" text-anchor="middle">distinct nodes</text>
+<polyline fill="none" stroke="#d62728" stroke-width="1.6" points="79.5,167.6 89.3,167.6 99.0,167.6 108.8,167.6 118.6,167.6 147.9,167.6 186.9,167.6 196.7,124.7 206.4,124.7 245.5,124.7 255.2,124.7 265.0,124.7 333.3,124.7 343.1,124.7 352.9,124.7 362.6,124.7 372.4,124.7 382.1,124.7 391.9,124.7 401.7,124.7 411.4,124.7 421.2,124.7 431.0,124.7 440.7,124.7 450.5,124.7 460.2,124.7 479.8,124.7 489.5,124.7 499.3,124.7 509.0,124.7 518.8,124.7 528.6,124.7 538.3,124.7 548.1,124.7 557.9,124.7 567.6,124.7 577.4,124.7 587.1,124.7 596.9,124.7 606.7,124.7 616.4,124.7 626.2,124.7 636.0,124.7 645.7,124.7 655.5,124.7 665.2,124.7 675.0,124.7 684.8,124.7 704.3,124.7 714.0,124.7 723.8,124.7 733.6,124.7 753.1,124.7 762.9,124.7 772.6,124.7 782.4,122.4 792.1,122.4 801.9,122.4 811.7,122.4 821.4,122.4 831.2,122.4 841.0,122.4 850.7,122.4 860.5,122.4 870.2,122.4 880.0,122.4"/>
+<polyline fill="none" stroke="#1f77b4" stroke-width="1.6" points="60.0,237.7 69.8,228.6 79.5,217.3 89.3,217.3 99.0,217.3 108.8,210.5 118.6,203.8 128.3,169.9 138.1,169.9 147.9,169.9 157.6,169.9 167.4,169.9 177.1,169.9 186.9,169.9 196.7,169.9 206.4,169.9 216.2,169.9 226.0,169.9 235.7,169.9 245.5,169.9 255.2,169.9 265.0,154.0 274.8,154.0 284.5,154.0 294.3,154.0 304.0,154.0 313.8,154.0 323.6,154.0 333.3,154.0 343.1,154.0 352.9,154.0 362.6,154.0 372.4,154.0 382.1,154.0 391.9,154.0 401.7,154.0 411.4,154.0 421.2,154.0 431.0,154.0 440.7,149.5 450.5,149.5 460.2,149.5 470.0,149.5 479.8,149.5 489.5,149.5 499.3,149.5 509.0,149.5 518.8,149.5 528.6,149.5 538.3,149.5 548.1,147.3 557.9,147.3 567.6,147.3 577.4,147.3 587.1,147.3 596.9,147.3 606.7,147.3 616.4,147.3 626.2,147.3 636.0,147.3 645.7,147.3 655.5,147.3 665.2,147.3 675.0,147.3 684.8,147.3 694.5,140.5 704.3,140.5 714.0,140.5 723.8,140.5 733.6,140.5 743.3,140.5 753.1,140.5 762.9,140.5 772.6,140.5 782.4,140.5 792.1,140.5 801.9,140.5 811.7,140.5 821.4,140.5 831.2,140.5 841.0,140.5 850.7,140.5 860.5,140.5 870.2,140.5"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="1.6" points="69.8,215.1 79.5,215.1 89.3,215.1 99.0,215.1 108.8,215.1 118.6,210.5 128.3,167.6 138.1,167.6 147.9,167.6 157.6,167.6 167.4,167.6 177.1,167.6 186.9,167.6 196.7,167.6 206.4,167.6 216.2,167.6 226.0,167.6 235.7,167.6 245.5,167.6 255.2,160.8 265.0,160.8 274.8,160.8 284.5,160.8 294.3,160.8 304.0,160.8 313.8,160.8 323.6,160.8 333.3,160.8 343.1,160.8 352.9,160.8 362.6,160.8 372.4,160.8 382.1,158.6 391.9,158.6 401.7,158.6 411.4,158.6 421.2,158.6 431.0,154.0 440.7,154.0 450.5,154.0 460.2,154.0 470.0,154.0 479.8,154.0 489.5,154.0 499.3,154.0 509.0,149.5 518.8,149.5 528.6,149.5 538.3,149.5 548.1,149.5 557.9,149.5 567.6,149.5 577.4,149.5 587.1,149.5 596.9,149.5 606.7,149.5 616.4,149.5 626.2,149.5 636.0,149.5 645.7,149.5 655.5,149.5 665.2,149.5 675.0,149.5 684.8,149.5 694.5,149.5 704.3,149.5 714.0,149.5 723.8,149.5 733.6,149.5 743.3,149.5 753.1,149.5 762.9,149.5 772.6,149.5 782.4,149.5 792.1,149.5 801.9,149.5 811.7,149.5 821.4,149.5 831.2,149.5 841.0,149.5 850.7,149.5 860.5,149.5 870.2,149.5"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="1.6" points="60.0,255.7 69.8,244.4 79.5,230.9 99.0,230.9 108.8,230.9 118.6,206.0 128.3,192.5 138.1,192.5 147.9,192.5 157.6,192.5 167.4,192.5 177.1,192.5 186.9,192.5 196.7,192.5 206.4,192.5 226.0,192.5 235.7,192.5 245.5,192.5 255.2,169.9 265.0,163.1 274.8,163.1 284.5,163.1 294.3,163.1 304.0,163.1 313.8,163.1 323.6,163.1 333.3,163.1 343.1,163.1 352.9,163.1 372.4,163.1 382.1,160.8 391.9,160.8 401.7,160.8 411.4,160.8 421.2,160.8 431.0,160.8 440.7,160.8 450.5,160.8 460.2,160.8 470.0,160.8 479.8,160.8 489.5,160.8 499.3,160.8 509.0,160.8 518.8,160.8 528.6,160.8 538.3,160.8 548.1,151.8 557.9,151.8 567.6,151.8 577.4,151.8 587.1,151.8 596.9,151.8 606.7,151.8 616.4,151.8 626.2,151.8 636.0,151.8 645.7,151.8 655.5,151.8 665.2,151.8 675.0,151.8 684.8,151.8 694.5,151.8 704.3,151.8 714.0,151.8 723.8,151.8 733.6,151.8 743.3,151.8 753.1,151.8 762.9,151.8 772.6,151.8 782.4,151.8 792.1,151.8 801.9,151.8 811.7,151.8 821.4,151.8 831.2,151.8 841.0,151.8 850.7,151.8 870.2,151.8"/>
+<polyline fill="none" stroke="#9467bd" stroke-width="1.6" points="89.3,156.3 99.0,131.4 118.6,131.4 128.3,131.4 138.1,131.4 147.9,131.4 157.6,131.4 167.4,131.4 177.1,131.4 186.9,131.4 196.7,131.4 206.4,131.4 216.2,131.4 226.0,131.4 235.7,131.4 245.5,131.4 255.2,131.4 265.0,131.4 274.8,131.4 284.5,131.4 294.3,131.4 304.0,131.4 313.8,131.4 323.6,131.4 333.3,131.4 343.1,131.4 352.9,131.4 362.6,131.4 372.4,131.4 382.1,131.4 391.9,131.4 401.7,131.4 411.4,131.4 421.2,131.4 431.0,131.4 440.7,131.4 450.5,131.4 460.2,131.4 470.0,131.4 479.8,131.4 489.5,131.4 499.3,131.4 509.0,131.4 518.8,131.4 528.6,131.4 538.3,131.4 548.1,131.4 557.9,131.4 567.6,131.4 577.4,131.4 587.1,131.4 596.9,131.4 606.7,131.4 616.4,131.4 626.2,131.4 636.0,131.4 645.7,131.4 655.5,131.4 665.2,131.4 675.0,131.4 684.8,131.4 694.5,131.4 704.3,131.4 714.0,131.4 723.8,131.4 733.6,131.4 743.3,131.4 753.1,131.4 762.9,131.4 772.6,131.4 782.4,131.4 792.1,131.4 811.7,131.4 821.4,131.4 831.2,131.4 841.0,131.4 850.7,131.4 870.2,131.4"/>
+<line class="tgt" x1="60" y1="122.4" x2="880" y2="122.4"/>
+<text class="tick" x="66" y="119.4" fill="#666">fleet size = 60</text>
+<rect x="660" y="38" width="14" height="3" fill="#d62728"/>
+<text x="678" y="43" font-size="10">8347543b</text>
+<rect x="660" y="50" width="14" height="3" fill="#1f77b4"/>
+<text x="678" y="55" font-size="10">b01479cc</text>
+<rect x="660" y="62" width="14" height="3" fill="#2ca02c"/>
+<text x="678" y="67" font-size="10">65681556</text>
+<rect x="660" y="74" width="14" height="3" fill="#ff7f0e"/>
+<text x="678" y="79" font-size="10">53f8418c</text>
+<rect x="660" y="86" width="14" height="3" fill="#9467bd"/>
+<text x="678" y="91" font-size="10">c6faa9bc</text>
+</svg></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" width="900" height="360">
+  <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:12px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
+  <text class="title" x="60" y="18">cvmps-win-am: fleet footprint (nodes touched / fleet size, top 15)</text>
+<line class="tgt" x1="840.0" y1="32" x2="840.0" y2="334"/>
+<text class="tick" x="840.0" y="28" text-anchor="middle" fill="#666">fleet=60</text>
+<line class="axis" x1="190" y1="32" x2="190" y2="334"/>
+<line class="axis" x1="190" y1="334" x2="840" y2="334"/>
+<rect x="190" y="34.0" width="650.0" height="16.1" fill="#d62728" fill-opacity="0.75"/>
+<text x="184" y="49.1" text-anchor="end" font-size="10">cvms_26_08_11w2025</text>
+<text x="844.0" y="49.1" font-size="10">60/60</text>
+<rect x="190" y="54.1" width="650.0" height="16.1" fill="#1f77b4" fill-opacity="0.75"/>
+<text x="184" y="69.3" text-anchor="end" font-size="10">2022-datacenter-smalldisk-</text>
+<text x="844.0" y="69.3" font-size="10">60/60</text>
+<rect x="190" y="74.3" width="650.0" height="16.1" fill="#2ca02c" fill-opacity="0.75"/>
+<text x="184" y="89.4" text-anchor="end" font-size="10">2025-datacenter-azure-edit</text>
+<text x="844.0" y="89.4" font-size="10">60/60</text>
+<rect x="190" y="94.4" width="650.0" height="16.1" fill="#ff7f0e" fill-opacity="0.75"/>
+<text x="184" y="109.5" text-anchor="end" font-size="10">2025-datacenter-smalldisk-</text>
+<text x="844.0" y="109.5" font-size="10">60/60</text>
+<rect x="190" y="114.5" width="650.0" height="16.1" fill="#9467bd" fill-opacity="0.75"/>
+<text x="184" y="129.7" text-anchor="end" font-size="10">cvms_26_07_11w2025_exo</text>
+<text x="844.0" y="129.7" font-size="10">60/60</text>
+<rect x="190" y="134.7" width="650.0" height="16.1" fill="#8c564b" fill-opacity="0.75"/>
+<text x="184" y="149.8" text-anchor="end" font-size="10">PIR</text>
+<text x="844.0" y="149.8" font-size="10">60/60</text>
+<rect x="190" y="154.8" width="650.0" height="16.1" fill="#e377c2" fill-opacity="0.75"/>
+<text x="184" y="169.9" text-anchor="end" font-size="10">2025-datacenter-g2</text>
+<text x="844.0" y="169.9" font-size="10">60/60</text>
+<rect x="190" y="174.9" width="650.0" height="16.1" fill="#17becf" fill-opacity="0.75"/>
+<text x="184" y="190.1" text-anchor="end" font-size="10">cvms_26_07_11w2025</text>
+<text x="844.0" y="190.1" font-size="10">60/60</text>
+<rect x="190" y="195.1" width="650.0" height="16.1" fill="#bcbd22" fill-opacity="0.75"/>
+<text x="184" y="210.2" text-anchor="end" font-size="10">2025-datacenter-azure-edit</text>
+<text x="844.0" y="210.2" font-size="10">60/60</text>
+<rect x="190" y="215.2" width="650.0" height="16.1" fill="#7f7f7f" fill-opacity="0.75"/>
+<text x="184" y="230.3" text-anchor="end" font-size="10">cvms_26_08_11w2025_exo</text>
+<text x="844.0" y="230.3" font-size="10">60/60</text>
+<rect x="190" y="235.3" width="650.0" height="16.1" fill="#d62728" fill-opacity="0.75"/>
+<text x="184" y="250.5" text-anchor="end" font-size="10">cvms_26_07_11w2022_exo</text>
+<text x="844.0" y="250.5" font-size="10">60/60</text>
+<rect x="190" y="255.5" width="650.0" height="16.1" fill="#1f77b4" fill-opacity="0.75"/>
+<text x="184" y="270.6" text-anchor="end" font-size="10">2022-datacenter-azure-edit</text>
+<text x="844.0" y="270.6" font-size="10">60/60</text>
+<rect x="190" y="275.6" width="650.0" height="16.1" fill="#2ca02c" fill-opacity="0.75"/>
+<text x="184" y="290.7" text-anchor="end" font-size="10">2019-datacenter-smalldisk-</text>
+<text x="844.0" y="290.7" font-size="10">60/60</text>
+<rect x="190" y="295.7" width="606.7" height="16.1" fill="#ff7f0e" fill-opacity="0.75"/>
+<text x="184" y="310.9" text-anchor="end" font-size="10">windows2022</text>
+<text x="800.7" y="310.9" font-size="10">56/60</text>
+<rect x="190" y="315.9" width="585.0" height="16.1" fill="#9467bd" fill-opacity="0.75"/>
+<text x="184" y="331.0" text-anchor="end" font-size="10">2025-datacenter-azure-edit</text>
+<text x="779.0" y="331.0" font-size="10">54/60</text>
+</svg></div>
+
+<h2>Cross-reference to the bench report</h2>
+<div class="meta">
+The <a href="../">tricast bench sweep</a> ran nine scenarios (rpm &times; N labels &times; P pods) with three topologies: baseline (Kubernetes default),
+central (single warm pod per label + HA replica), pernode (label-affinity DaemonSet). Baseline reproduces production behavior &mdash;
+<b>full-fleet spread per label</b>, high cold-tax, P99 pinned at the cold-copy time. Central and pernode both converge to
+<b>1&ndash;2 pods per label</b>, cold-tax = 0 after the first window, P99 = warm floor (~2 s).
+<br/><br/>
+The production 100%-fleet-spread observed above is the <i>same</i> pattern the bench exhibits under baseline. Every top image
+in usw3/bl/am has been observed on every node in the fleet within a 7-day window. The bench validates that
+<code>ideal=2</code> is not aspirational &mdash; it is exactly what pernode &amp; central topologies converge to across all nine scenarios.
+</div>
+
+<p style="color:#888;font-size:11px;margin-top:24px">Generated 2026-08-20T18:38:35.619Z from Kusto (7d lookback, 2h bins). Bench cross-reference: <a href="../">index (bench)</a>.</p>
+</body></html>
