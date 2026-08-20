@@ -31,9 +31,12 @@ This report answers: <i>in production, why are so many encryptions "wasted"? For
 metric <code>WindowsEncryptionNumberOfRequests</code>, dimension <code>dv[0]=ImageReference</code>, <code>dv[1]=ImageSource</code>, <code>dv[4]=Node</code>. Long-form rows only
 (<code>array_length(dv) == 8</code>); each row is one encryption request. Window = last 7 days, 2h bins for time-series.
 
-<br/><br/><b>Waste model.</b> If a single label (image) is downloaded &amp; encrypted on <code>Nodes</code> distinct nodes but the actual
-distinct request rate would fit on <code>ideal=2</code> nodes (bench-observed 1 warm pod + 1 HA replica),
+<br/><br/><b>Waste model.</b> If a single vHD is downloaded &amp; encrypted on <code>Nodes</code> distinct hosts but the actual
+steady-state RPM would fit on <code>ideal=8</code> warm replicas (plus a <b>+4 error budget &rarr; up to 12</b> during incidents / peaks),
 <code>wasted&nbsp;=&nbsp;Requests * (1 - ideal/Nodes)</code>. Each wasted encryption is roughly a full ~45 s (small) or ~180 s (large) cold download+decrypt+re-encrypt.
+<br/><br/><b>How we sized <code>ideal=8</code>.</b>
+<b>3</b> for zone redundancy across Azure's 3 AZs&nbsp;+&nbsp;<b>1</b> for rolling-upgrade/node-drain tolerance&nbsp;+&nbsp;<b>1</b> for burst absorption (bl peaks at 67 rpm minute-bin)&nbsp;+&nbsp;<b>1</b> for cache-warmup race on new images&nbsp;+&nbsp;<b>1</b> for L1 eviction resilience&nbsp;=&nbsp;<b>7 &rarr; round to 8</b>. Error budget <b>+4</b> covers correlated node loss or unexpected traffic pattern (max provisioned = 12/image).
+Sensitivity to this constant is shown in the fleet summary table &mdash; even at <code>ideal=12</code> the reduction factor is still &gt;<b>4&times;</b>.
 </div>
 
 <h2>Fleet-wide summary (3 hot regions, 7 d)</h2>
@@ -41,25 +44,81 @@ distinct request rate would fit on <code>ideal=2</code> nodes (bench-observed 1 
 <div class="kpi">Fleet nodes: <b>191</b></div>
 <div class="kpi">Distinct hot images (&ge;30 reqs): <b>82</b></div>
 <div class="kpi">Total requests: <b>86,094</b></div>
-<div class="kpi warn">Wasted @ ideal=2: <b>83,199</b> (96.6%)</div>
-<div class="kpi">Reduction factor: <b>29.7&times;</b></div>
+<div class="kpi warn">Wasted @ ideal=8: <b>74,517</b> (86.6%)</div>
+<div class="kpi">Reduction factor: <b>7.4&times;</b></div>
 
 <div class="callout">
-<b>Headline finding.</b> Every top image in every region touches essentially the <b>entire fleet</b> (spread 98-100%),
-even though its actual request rate is only <b>1&ndash;25 requests/hour</b>. In every 2-hour window the same image is dispatched to
-&gt;90% of nodes &mdash; each of which pays a full cold-download tax the very first time and rewarms whenever the L1 evicts.
-The bench measured that with locality routing this footprint collapses to <b>1&ndash;2 pods per image (+1 HA replica)</b>
-with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> across the three regions eliminates
-<b>83,199</b> of the <b>86,094</b> weekly requests &mdash; a
-<b>29.7&times; reduction</b> in redundant cold encryptions.
+<b>Headline finding.</b> Every hot vHD in every region touches essentially the <b>entire fleet</b> (spread 98-100%),
+even though the entire region only sees <b>3&ndash;8 rpm aggregate</b> across all vHDs (P50-P99).
+In every 2-hour window the same image is dispatched to &gt;90% of nodes &mdash;
+each of which pays a full cold-download tax the first time and re-warms whenever the L1 evicts.
+The bench measured that with locality routing this footprint collapses to a single canonical pod per image.
+Sizing that up for production (3 AZs, HA, burst, cache-warmup, eviction) gives <code>ideal=8</code> warm replicas per hot vHD
+with an error budget of <b>+4</b> nodes (up to 12 provisioned). Applying <code>ideal=8</code> across the three regions eliminates
+<b>74,517</b> of the <b>86,094</b> weekly requests &mdash; a
+<b>7.4&times; reduction</b> in redundant cold encryptions.
 </div>
+
+<h2>Empirical verification (from Kusto, 7&nbsp;d)</h2>
+<p class="caption">Before locking in the sizing above, we verified from production data that (a) the count of distinct vHDs is small enough to fit in a locality warm-set, and (b) the aggregate steady-state RPM per region is well below the load a small warm-set can absorb.</p>
+<table class="summary">
+  <tr><th>region</th><th>fleet</th><th>vHDs total</th><th>vHDs &ge;30 reqs</th><th>vHDs &ge;500 reqs</th><th>avg rpm</th><th>P50 rpm</th><th>P90 rpm</th><th>P99 rpm</th><th>max rpm (1-min spike)</th></tr>
+  <tr><td class="topo">cvmps-win-am</td>  <td>60</td><td>22</td><td>20</td><td>11</td><td>3.38</td><td>3</td><td>5</td><td>8</td><td class="warn">30</td></tr>
+  <tr><td class="topo">cvmps-win-bl</td>  <td>80</td><td>96</td><td>39</td><td>12</td><td>3.54</td><td>4</td><td>6</td><td>8</td><td class="warn">67</td></tr>
+  <tr><td class="topo">cvmps-win-usw3</td><td>51</td><td>25</td><td>22</td><td>14</td><td>3.79</td><td>4</td><td>6</td><td>8</td><td class="warn">42</td></tr>
+</table>
+<p class="caption">Steady state (P50-P99) is <b>3-8 rpm</b> per region &mdash; comfortably under the 30 rpm threshold the sizing was checked against.
+Minute-level spikes reach 30-67 rpm; distributed across <code>ideal=8</code> that is <b>4-8 rpm per node</b>, inside a single pod's ~4-16 rpm envelope (4-concurrency x ~30-60 s per encryption).
+Cache-slot budget check: at 12 warm replicas per hot vHD, bl needs <b>39 &times; 12 = 468 slots</b> vs an estimated <b>~1600 slots</b> of fleet L1 capacity (~30% utilization) &mdash; leaves ample room for image churn and long-tail vHDs to be scheduled normally.</p>
+
+<h2>Sensitivity: how the headline moves with <code>ideal</code></h2>
+<table class="summary">
+  <tr><th>ideal (warm pods / image)</th><th>sizing rationale</th><th>wasted requests (7 d)</th><th>waste %</th><th>reduction factor</th></tr>
+  <tr>
+    <td>1</td>
+    <td class="topo">bench-tight floor; no HA, no burst headroom (not viable in prod)</td>
+    <td class="warn">84,647</td>
+    <td class="warn">98.3%</td>
+    <td><b>59.5&times;</b></td>
+  </tr><tr>
+    <td>3</td>
+    <td class="topo">1 per AZ x 3 AZs (no HA, no burst headroom)</td>
+    <td class="warn">81,753</td>
+    <td class="warn">95.0%</td>
+    <td><b>19.8&times;</b></td>
+  </tr><tr>
+    <td>5</td>
+    <td class="topo">3 zones + 1 HA + 1 burst (thin on cache-warmup race)</td>
+    <td class="warn">78,859</td>
+    <td class="warn">91.6%</td>
+    <td><b>11.9&times;</b></td>
+  </tr><tr>
+    <td>8</td>
+    <td class="topo"><b>zones (3) + HA (+1) + burst (+1) + warmup (+1) + eviction (+1) &mdash; nominal, sized here</b></td>
+    <td class="warn">74,518</td>
+    <td class="warn">86.6%</td>
+    <td><b>7.4&times;</b></td>
+  </tr><tr>
+    <td>12</td>
+    <td class="topo"><b>8 nominal + 4 error-budget nodes (max provisioned)</b></td>
+    <td class="warn">68,730</td>
+    <td class="warn">79.8%</td>
+    <td><b>5.0&times;</b></td>
+  </tr><tr>
+    <td>20</td>
+    <td class="topo">very conservative (~1/3 of small fleets warmed for one image)</td>
+    <td class="warn">57,153</td>
+    <td class="warn">66.4%</td>
+    <td><b>3.0&times;</b></td>
+  </tr>
+</table>
 
 <h2>cvmps-win-usw3 &mdash; fleet 51 nodes</h2>
 <p class="caption">7-day window &middot; 32,764 total requests across 23 distinct images (>=30 reqs each) &middot;
-<b class="warn">31,451 wasted encryptions</b> at ideal=2 (96.0%) &middot;
+<b class="warn">27,519 wasted encryptions</b> at ideal=8 (84.0%) &middot;
 19 images spread &ge;90% of fleet &middot; 99.0% of requests came from full-fleet-spread images.</p>
 <table class="summary">
-    <tr><th>#</th><th>source</th><th>name</th><th>image id</th><th>reqs (7d)</th><th>nodes</th><th>spread</th><th>req/h</th><th>active h</th><th>wasted @ ideal=2</th><th>waste %</th></tr>
+    <tr><th>#</th><th>source</th><th>name</th><th>image id</th><th>reqs (7d)</th><th>nodes</th><th>spread</th><th>req/h</th><th>active h</th><th>wasted @ ideal=8</th><th>waste %</th></tr>
     <tr>
     <td>1</td>
     <td class="topo">EAP</td>
@@ -70,8 +129,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>32.73</td>
     <td>168</td>
-    <td class="warn">5,267</td>
-    <td>96.1%</td>
+    <td class="warn">4,622</td>
+    <td>84.3%</td>
   </tr><tr>
     <td>2</td>
     <td class="topo">EAP</td>
@@ -82,8 +141,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">98.0%</td>
     <td>25.35</td>
     <td>168</td>
-    <td class="warn">4,081</td>
-    <td>96.0%</td>
+    <td class="warn">3,571</td>
+    <td>84.0%</td>
   </tr><tr>
     <td>3</td>
     <td class="topo">EAP</td>
@@ -94,8 +153,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">98.0%</td>
     <td>23.34</td>
     <td>167</td>
-    <td class="warn">3,742</td>
-    <td>96.0%</td>
+    <td class="warn">3,274</td>
+    <td>84.0%</td>
   </tr><tr>
     <td>4</td>
     <td class="topo">PIR</td>
@@ -106,8 +165,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">98.0%</td>
     <td>20.97</td>
     <td>168</td>
-    <td class="warn">3,377</td>
-    <td>96.0%</td>
+    <td class="warn">2,955</td>
+    <td>84.0%</td>
   </tr><tr>
     <td>5</td>
     <td class="topo">PIR</td>
@@ -118,8 +177,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">98.0%</td>
     <td>15.82</td>
     <td>165</td>
-    <td class="warn">2,510</td>
-    <td>96.0%</td>
+    <td class="warn">2,197</td>
+    <td>84.0%</td>
   </tr><tr>
     <td>6</td>
     <td class="topo">PIR</td>
@@ -130,8 +189,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">98.0%</td>
     <td>14.55</td>
     <td>167</td>
-    <td class="warn">2,335</td>
-    <td>96.0%</td>
+    <td class="warn">2,043</td>
+    <td>84.0%</td>
   </tr><tr>
     <td>7</td>
     <td class="topo">PIR</td>
@@ -142,8 +201,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">98.0%</td>
     <td>13.58</td>
     <td>165</td>
-    <td class="warn">2,148</td>
-    <td>96.0%</td>
+    <td class="warn">1,880</td>
+    <td>84.0%</td>
   </tr><tr>
     <td>8</td>
     <td class="topo">PIR</td>
@@ -154,8 +213,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">98.0%</td>
     <td>10.14</td>
     <td>168</td>
-    <td class="warn">1,631</td>
-    <td>96.0%</td>
+    <td class="warn">1,427</td>
+    <td>84.0%</td>
   </tr><tr>
     <td>9</td>
     <td class="topo">EAP</td>
@@ -166,8 +225,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">98.0%</td>
     <td>7.60</td>
     <td>166</td>
-    <td class="warn">1,207</td>
-    <td>96.0%</td>
+    <td class="warn">1,056</td>
+    <td>84.0%</td>
   </tr><tr>
     <td>10</td>
     <td class="topo">PIR</td>
@@ -178,8 +237,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">98.0%</td>
     <td>6.95</td>
     <td>168</td>
-    <td class="warn">1,119</td>
-    <td>96.0%</td>
+    <td class="warn">979</td>
+    <td>84.0%</td>
   </tr><tr>
     <td>11</td>
     <td class="topo">OneP</td>
@@ -190,8 +249,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">98.0%</td>
     <td>8.34</td>
     <td>109</td>
-    <td class="warn">872</td>
-    <td>96.0%</td>
+    <td class="warn">763</td>
+    <td>84.0%</td>
   </tr><tr>
     <td>12</td>
     <td class="topo">EAP</td>
@@ -202,12 +261,12 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">98.0%</td>
     <td>6.02</td>
     <td>139</td>
-    <td class="warn">804</td>
-    <td>96.1%</td>
+    <td class="warn">703</td>
+    <td>84.0%</td>
   </tr>
     <tr><td colspan="4"><b>Region totals (all images >=30 reqs)</b></td>
         <td><b>32,764</b></td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
-        <td class="warn"><b>31,451</b></td><td class="warn"><b>96.0%</b></td></tr>
+        <td class="warn"><b>27,519</b></td><td class="warn"><b>84.0%</b></td></tr>
   </table>
 <div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" width="900" height="300">
   <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:12px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
@@ -363,10 +422,10 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
 </svg></div>
 <h2>cvmps-win-bl &mdash; fleet 80 nodes</h2>
 <p class="caption">7-day window &middot; 26,761 total requests across 39 distinct images (>=30 reqs each) &middot;
-<b class="warn">26,072 wasted encryptions</b> at ideal=2 (97.4%) &middot;
+<b class="warn">24,000 wasted encryptions</b> at ideal=8 (89.7%) &middot;
 21 images spread &ge;90% of fleet &middot; 94.3% of requests came from full-fleet-spread images.</p>
 <table class="summary">
-    <tr><th>#</th><th>source</th><th>name</th><th>image id</th><th>reqs (7d)</th><th>nodes</th><th>spread</th><th>req/h</th><th>active h</th><th>wasted @ ideal=2</th><th>waste %</th></tr>
+    <tr><th>#</th><th>source</th><th>name</th><th>image id</th><th>reqs (7d)</th><th>nodes</th><th>spread</th><th>req/h</th><th>active h</th><th>wasted @ ideal=8</th><th>waste %</th></tr>
     <tr>
     <td>1</td>
     <td class="topo">EAP</td>
@@ -377,8 +436,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>18.85</td>
     <td>164</td>
-    <td class="warn">3,009</td>
-    <td>97.5%</td>
+    <td class="warn">2,777</td>
+    <td>90.0%</td>
   </tr><tr>
     <td>2</td>
     <td class="topo">EAP</td>
@@ -389,8 +448,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>17.57</td>
     <td>168</td>
-    <td class="warn">2,870</td>
-    <td>97.5%</td>
+    <td class="warn">2,650</td>
+    <td>90.0%</td>
   </tr><tr>
     <td>3</td>
     <td class="topo">PIR</td>
@@ -401,8 +460,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>16.48</td>
     <td>166</td>
-    <td class="warn">2,669</td>
-    <td>97.5%</td>
+    <td class="warn">2,463</td>
+    <td>90.0%</td>
   </tr><tr>
     <td>4</td>
     <td class="topo">PIR</td>
@@ -413,8 +472,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>15.47</td>
     <td>168</td>
-    <td class="warn">2,531</td>
-    <td>97.5%</td>
+    <td class="warn">2,336</td>
+    <td>90.0%</td>
   </tr><tr>
     <td>5</td>
     <td class="topo">PIR</td>
@@ -425,8 +484,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>15.27</td>
     <td>168</td>
-    <td class="warn">2,499</td>
-    <td>97.5%</td>
+    <td class="warn">2,307</td>
+    <td>90.0%</td>
   </tr><tr>
     <td>6</td>
     <td class="topo">EAP</td>
@@ -437,8 +496,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>17.00</td>
     <td>144</td>
-    <td class="warn">2,383</td>
-    <td>97.5%</td>
+    <td class="warn">2,200</td>
+    <td>90.0%</td>
   </tr><tr>
     <td>7</td>
     <td class="topo">EAP</td>
@@ -449,8 +508,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>9.39</td>
     <td>167</td>
-    <td class="warn">1,529</td>
-    <td>97.5%</td>
+    <td class="warn">1,411</td>
+    <td>90.0%</td>
   </tr><tr>
     <td>8</td>
     <td class="topo">PIR</td>
@@ -461,8 +520,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>6.99</td>
     <td>168</td>
-    <td class="warn">1,143</td>
-    <td>97.5%</td>
+    <td class="warn">1,055</td>
+    <td>90.0%</td>
   </tr><tr>
     <td>9</td>
     <td class="topo">SIG</td>
@@ -473,8 +532,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>6.10</td>
     <td>168</td>
-    <td class="warn">996</td>
-    <td>97.5%</td>
+    <td class="warn">920</td>
+    <td>90.0%</td>
   </tr><tr>
     <td>10</td>
     <td class="topo">EAP</td>
@@ -485,8 +544,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>5.27</td>
     <td>164</td>
-    <td class="warn">840</td>
-    <td>97.4%</td>
+    <td class="warn">776</td>
+    <td>90.0%</td>
   </tr><tr>
     <td>11</td>
     <td class="topo">SIG</td>
@@ -497,8 +556,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>4.95</td>
     <td>166</td>
-    <td class="warn">802</td>
-    <td>97.4%</td>
+    <td class="warn">741</td>
+    <td>90.0%</td>
   </tr><tr>
     <td>12</td>
     <td class="topo">SIG</td>
@@ -509,12 +568,12 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>9.71</td>
     <td>52</td>
-    <td class="warn">496</td>
-    <td>97.4%</td>
+    <td class="warn">458</td>
+    <td>90.0%</td>
   </tr>
     <tr><td colspan="4"><b>Region totals (all images >=30 reqs)</b></td>
         <td><b>26,761</b></td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
-        <td class="warn"><b>26,072</b></td><td class="warn"><b>97.4%</b></td></tr>
+        <td class="warn"><b>24,000</b></td><td class="warn"><b>89.7%</b></td></tr>
   </table>
 <div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" width="900" height="300">
   <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:12px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
@@ -670,10 +729,10 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
 </svg></div>
 <h2>cvmps-win-am &mdash; fleet 60 nodes</h2>
 <p class="caption">7-day window &middot; 26,569 total requests across 20 distinct images (>=30 reqs each) &middot;
-<b class="warn">25,676 wasted encryptions</b> at ideal=2 (96.6%) &middot;
+<b class="warn">22,998 wasted encryptions</b> at ideal=8 (86.6%) &middot;
 15 images spread &ge;90% of fleet &middot; 98.9% of requests came from full-fleet-spread images.</p>
 <table class="summary">
-    <tr><th>#</th><th>source</th><th>name</th><th>image id</th><th>reqs (7d)</th><th>nodes</th><th>spread</th><th>req/h</th><th>active h</th><th>wasted @ ideal=2</th><th>waste %</th></tr>
+    <tr><th>#</th><th>source</th><th>name</th><th>image id</th><th>reqs (7d)</th><th>nodes</th><th>spread</th><th>req/h</th><th>active h</th><th>wasted @ ideal=8</th><th>waste %</th></tr>
     <tr>
     <td>1</td>
     <td class="topo">EAP</td>
@@ -684,8 +743,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>22.66</td>
     <td>163</td>
-    <td class="warn">3,577</td>
-    <td>96.7%</td>
+    <td class="warn">3,207</td>
+    <td>86.7%</td>
   </tr><tr>
     <td>2</td>
     <td class="topo">PIR</td>
@@ -696,8 +755,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>19.84</td>
     <td>166</td>
-    <td class="warn">3,185</td>
-    <td>96.7%</td>
+    <td class="warn">2,856</td>
+    <td>86.7%</td>
   </tr><tr>
     <td>3</td>
     <td class="topo">PIR</td>
@@ -708,8 +767,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>16.23</td>
     <td>166</td>
-    <td class="warn">2,596</td>
-    <td>96.6%</td>
+    <td class="warn">2,328</td>
+    <td>86.7%</td>
   </tr><tr>
     <td>4</td>
     <td class="topo">PIR</td>
@@ -720,8 +779,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>15.83</td>
     <td>167</td>
-    <td class="warn">2,547</td>
-    <td>96.7%</td>
+    <td class="warn">2,284</td>
+    <td>86.7%</td>
   </tr><tr>
     <td>5</td>
     <td class="topo">EAP</td>
@@ -732,8 +791,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>15.45</td>
     <td>160</td>
-    <td class="warn">2,391</td>
-    <td>96.7%</td>
+    <td class="warn">2,143</td>
+    <td>86.7%</td>
   </tr><tr>
     <td>6</td>
     <td class="topo">PIR</td>
@@ -744,8 +803,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>14.01</td>
     <td>168</td>
-    <td class="warn">2,268</td>
-    <td>96.7%</td>
+    <td class="warn">2,033</td>
+    <td>86.7%</td>
   </tr><tr>
     <td>7</td>
     <td class="topo">PIR</td>
@@ -756,8 +815,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>13.18</td>
     <td>164</td>
-    <td class="warn">2,090</td>
-    <td>96.7%</td>
+    <td class="warn">1,874</td>
+    <td>86.7%</td>
   </tr><tr>
     <td>8</td>
     <td class="topo">EAP</td>
@@ -768,8 +827,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>13.36</td>
     <td>151</td>
-    <td class="warn">1,947</td>
-    <td>96.7%</td>
+    <td class="warn">1,745</td>
+    <td>86.6%</td>
   </tr><tr>
     <td>9</td>
     <td class="topo">PIR</td>
@@ -780,8 +839,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>11.32</td>
     <td>164</td>
-    <td class="warn">1,796</td>
-    <td>96.7%</td>
+    <td class="warn">1,610</td>
+    <td>86.7%</td>
   </tr><tr>
     <td>10</td>
     <td class="topo">EAP</td>
@@ -792,8 +851,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>13.52</td>
     <td>106</td>
-    <td class="warn">1,381</td>
-    <td>96.6%</td>
+    <td class="warn">1,238</td>
+    <td>86.6%</td>
   </tr><tr>
     <td>11</td>
     <td class="topo">EAP</td>
@@ -804,8 +863,8 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>5.96</td>
     <td>110</td>
-    <td class="warn">635</td>
-    <td>96.7%</td>
+    <td class="warn">569</td>
+    <td>86.6%</td>
   </tr><tr>
     <td>12</td>
     <td class="topo">OneP</td>
@@ -816,12 +875,12 @@ with <b>zero cold-tax after the first minute</b>. Applying <code>ideal=2</code> 
     <td class="warn">100.0%</td>
     <td>2.84</td>
     <td>124</td>
-    <td class="warn">341</td>
-    <td>96.6%</td>
+    <td class="warn">306</td>
+    <td>86.7%</td>
   </tr>
     <tr><td colspan="4"><b>Region totals (all images >=30 reqs)</b></td>
         <td><b>26,569</b></td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td>
-        <td class="warn"><b>25,676</b></td><td class="warn"><b>96.6%</b></td></tr>
+        <td class="warn"><b>22,998</b></td><td class="warn"><b>86.6%</b></td></tr>
   </table>
 <div class="grid2"><div class="cell"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" width="900" height="300">
   <style>text{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;fill:#333}.title{font-size:12px;font-weight:600}.axis{stroke:#888;stroke-width:1}.grid{stroke:#e5e5e5;stroke-width:1}.tgt{stroke:#999;stroke-width:1;stroke-dasharray:4 3}.tick{fill:#555;font-size:10px}</style>
@@ -983,10 +1042,12 @@ central (single warm pod per label + HA replica), pernode (label-affinity Daemon
 <b>full-fleet spread per label</b>, high cold-tax, P99 pinned at the cold-copy time. Central and pernode both converge to
 <b>1&ndash;2 pods per label</b>, cold-tax = 0 after the first window, P99 = warm floor (~2 s).
 <br/><br/>
-The production 100%-fleet-spread observed above is the <i>same</i> pattern the bench exhibits under baseline. Every top image
-in usw3/bl/am has been observed on every node in the fleet within a 7-day window. The bench validates that
-<code>ideal=2</code> is not aspirational &mdash; it is exactly what pernode &amp; central topologies converge to across all nine scenarios.
+The production 100%-fleet-spread observed above is the <i>same</i> pattern the bench exhibits under baseline. Every top vHD
+in usw3/bl/am has been observed on every node in the fleet within a 7-day window. The bench validates that a small canonical
+warm-set (avg pods/label = 1.00 in central &amp; pernode) suffices for the workload; production sizing (<code>ideal=8</code>,
+error-budget up to 12) layers HA, zone, burst, and eviction margin on top of that bench floor so we don't lean on any
+single assumption.
 </div>
 
-<p style="color:#888;font-size:11px;margin-top:24px">Generated 2026-08-20T18:38:35.619Z from Kusto (7d lookback, 2h bins). Bench cross-reference: <a href="../">index (bench)</a>.</p>
+<p style="color:#888;font-size:11px;margin-top:24px">Generated 2026-08-20T21:40:51.888Z from Kusto (7d lookback, 2h bins). Bench cross-reference: <a href="../">index (bench)</a>.</p>
 </body></html>
